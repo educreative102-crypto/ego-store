@@ -1,0 +1,128 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id           String       @id @default(cuid())
+  sku          String       @unique
+  slug         String       @unique
+  name         String
+  description  String       @default("")
+  category     Category     @default(HOODIE)
+  stockPolicy  StockPolicy  @default(STOCKED)
+  basePrice    Float
+  costPrice    Float        @default(0)
+  designName   String       @default("")
+  printDetails String       @default("")
+  leadTimeDays Int          @default(3)
+  images       String       @default("[]")
+  active       Boolean      @default(true)
+  featured     Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  variants     Variant[]
+  orderItems   OrderItem[]
+}
+
+model Variant {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  size      String
+  color     String
+  stockQty  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([productId, size, color])
+}
+
+model Order {
+  id            String        @id @default(cuid())
+  orderNo       String        @unique
+  source        OrderSource   @default(WHATSAPP)
+  status        OrderStatus   @default(PENDING)
+  customerName  String
+  customerPhone String
+  paymentMethod PaymentMethod @default(SHAM_CASH)
+  paymentStatus PaymentStatus @default(PENDING)
+  totalAmount   Float         @default(0)
+  totalCost     Float         @default(0)
+  notes         String        @default("")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  confirmedAt   DateTime?
+  items         OrderItem[]
+  invoice       Invoice?
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([status, createdAt])
+}
+
+model OrderItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product @relation(fields: [productId], references: [id])
+  size         String
+  color        String
+  quantity     Int
+  unitPrice    Float
+  unitCost     Float
+  printDetails String  @default("")
+}
+
+model Invoice {
+  id        String   @id @default(cuid())
+  invoiceNo String   @unique
+  orderId   String   @unique
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Float
+  issuedAt  DateTime @default(now())
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+enum Category {
+  HOODIE
+  TSHIRT
+}
+
+enum StockPolicy {
+  STOCKED
+  MADE_TO_ORDER
+}
+
+enum OrderSource {
+  SITE
+  WHATSAPP
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PAID
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  SHAM_CASH
+  COD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+}
