@@ -1,12 +1,15 @@
 #!/usr/bin/env pwsh
-# تحويل قاعدة البيانات بين SQLite (تطوير محلي) و Postgresql (نشر Supabase/Neon)
+# تحويل قاعدة البيانات بين SQLite (تطوير محلي) و Postgresql (نشر Supabase)
 # الاستخدام:
-#   .\scripts\switch-db.ps1 -Target postgres   # قبل النشر (يُبدّل السكيمة و يستدعي db push)
+#   .\scripts\switch-db.ps1 -Target postgres   # قبل النشر (يُبدّل السكيمة فقط)
 #   .\scripts\switch-db.ps1 -Target sqlite     # للعودة للتطوير المحلي
 #
-# ملاحظة: لا يلمس .env — يجب ضبط DATABASE_URL يدويًا قبل التشغيل:
-#   - postgres: رابط Supabase عبر Transaction Pooler (?pgbouncer=true&connection_limit=1)
-#   - sqlite  : file:./dev.db
+# ملاحظة: لا يلمس .env ولا يشغّل db push — بعد تشغيله نفّذ يدويًا:
+#   - postgres: npx prisma db push  ثم  npx prisma generate
+#   - sqlite  : DATABASE_URL = file:./dev.db  ثم  npx prisma generate
+#
+# تذكير: رابط Supabase يجب أن يكون عبر Transaction Pooler مع
+#   ?pgbouncer=true&connection_limit=5   (connection_limit=1 يسبب خطأ P2024)
 
 param(
   [Parameter(Mandatory = $true)]

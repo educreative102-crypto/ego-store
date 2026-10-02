@@ -21,12 +21,13 @@
 - [x] 2.1 إنشاء قاعدة Supabase (فرانكفورت eu-central-1) + الحصول على رابطي Transaction/Session + رابط Transaction pooler جاهز
 - [x] 2.2 التحويل إلى PostgreSQL: `prisma/schema.prisma provider=sqlite→postgresql` + `db push` على Supabase + `generate` + تعطيل RLS (`scripts/disable-rls.sql`)
 - [x] 2.3 رفع الكود إلى GitHub (مستودع `ego_store`) + Push
-- [ ] 2.4 متغيّرات Vercel (DATABASE_URL/ADMIN_PASSWORD/AUTH_SECRET/APP_URL) + أول نشر ناجح — بانتظار تحديث `connection_limit=5` في المتغيّرات
-- [ ] 2.5 تعيين نطاق مخصص (اختياري) + تكوين cron اليومي للمزامنة (اختياري)
+- [x] 2.4 متغيّرات Vercel (DATABASE_URL/AUTH_SECRET/APP_URL) + أول نشر ناجح
+- [ ] 2.5 تعيين نطاق مخصص (اختياري)
+- [ ] 2.6 ترحيل المشروع إلى مستودع GitHub وحساب Vercel جديدين (خطوات مفصّلة في docs/DEPLOY.md)
 
 ## الإنجاز المحلي الجاهز للنشر (تم تنفيذه ولا يحتاج حسابات)
 - **postinstall**: أُضيف `prisma generate` تلقائيًا في `postinstall` (سطر في `package.json`) — هكذا ينشئ Vercel العميل Prisma أثناء `npm install` ولن يفشل النشر بسبب فقدان العميل أو عدم توازي قاعدة النشر.
-- **stars و vercel.json**: (انظر docs/DEPLOY.md لملء data من حسابك فعليًا).
+- **stars**: (انظر docs/DEPLOY.md لملء data من حسابك فعليًا).
 - **إصلاح P2024 (timeout الاتصال)**: على Supabase، `connection_limit=1` يسبب `P2024` (الصفحة تستدعي الإعدادات من 3 مكوّنات + كتالوجات متوازية). حُلّ بـ `getSettings` مُكشوفة عبر React `cache()` + رفع `connection_limit` إلى `5` في DATABASE_URL (راجع DEPLOY.md).
 - **تحسينات المزامنة/الحسابات:** دمج الأسطر المتطابقة في تبويب المبيعات + إعادة محاولة واحدة على فشل الكتابة + تسجيل الخطأ في logs المطور. والنِظام الحالي في حالات الملغى/الفاتورة/التكلفة موثّق صراحةً في `docs/PLAN.md` (قسم "قرارات محسومة").
 - الصفحات المولدة أيام الـ static أُجبرت على `force-dynamic` (المتجر + كل صفحات admin) — لا اتصال Prisma في وقت البناء (أهم إصلاح لمنع فشل النشر مع Neon).
@@ -40,7 +41,16 @@
 - **بانتظار التأكيد:** نفّذ `npx prisma db push` على قاعدة الإنتاج إن كان العمود ناقصًا، حتى تعود التكلفة في التقرير.
 - **مشكلة منفصلة:** كلمة مرور قاعدة البيانات في `.env` المحلي خاطئة (`28P01 password authentication failed`) — يجب لصق كلمة المرور الحقيقية من Supabase قبل أي اختبار محلي.
 
-## ملاحظات للمستقبل
+## فشل البناء بسبب استعلام وقت البناء + تنظيف cron
+- **السبب المؤكد لثلاث محاولات بناء فاشلة:** `src/app/sitemap.ts` كان يُنفَّذ كصفحة static وقت البناء، فيستدعي `prisma.product.findMany()` — وأي خطأ في `DATABASE_URL` كان يُسقط البناء كاملًا بـ `Error occurred prerendering page "/sitemap.xml"`.
+- **الإصلاح:** `sitemap.ts` صار `export const dynamic = "force-dynamic"` مع `.catch(() => [])` — البناء لا يحتاج قاعدة إطلاقًا، ويولّد الخريطة بأحدث المنتجات وقت الطلب. أضيف نفس السلوك إلى `robots.ts` لتفادي حجب الروبوتات عند فشل القاعدة.
+- **تنظيف `vercel.json`:** حُذف الملف كليًا. كان يحتوي cron على `/api/health` كل 5 دقائق بلا مستهلك، وخطة Hobby تسمح بيوميًا فقط. المراقبة الآن عبر خدمة خارجية (UptimeRobot) حسب `docs/DEPLOY.md`.
+- **الدرس المُوثَّق:** أي ملف يقرأ Prisma يجب أن يحمل `force-dynamic`، وإلا صار نقطة فشل واحدة تُسقط الموقع كله.
+
+## ترحيل الاستضافة إلى حساب جديد (قيد التنفيذ)
+- الخطة: مستودع GitHub جديد في حساب آخر + مشروع Vercel جديد في حساب شخصي جديد، بنفس قاعدة Supabase (لا تُنقل البيانات).
+- التوصيات المحفوظة في `docs/DEPLOY.md`: `git remote set-url` + `git push -u origin main` (ينقل التاريخ كاملًا)، استيراد المستودع الجديد عبر **Add New → Project**، إعادة ضبط المتغيّرات الثلاثة،Redeploy، ثم التحقق من `/api/health` و`/sitemap.xml` و`/admin/reports`.
+- **لا يُحذف المشروع القديم قبل نجاح الجديد ٤٨ ساعة.**
 - اختبارات Vitest: `npx vitest` تعمل عبر `vitest.config.ts` وملفات `src/lib/**/__tests__/*.test.ts`.
 - `npm run build` إلزامي قبل أي commit.
 - خطوط Cairo تُحمَّل عبر `next/font/google`؛ والواجهة RTL.
