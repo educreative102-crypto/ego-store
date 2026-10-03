@@ -3,7 +3,7 @@ import {
   remaining,
   isSoldOut,
   isAvailable,
-  canFulfill,
+  variantKey,
   orderTotal,
   orderCost,
   profit,
@@ -29,10 +29,13 @@ describe("inventory", () => {
     expect(isAvailable(StockPolicy.STOCKED, { stockQty: 3, confirmedQty: 3 })).toBe(false);
   });
 
-  it("canFulfill checks available margin", () => {
-    expect(canFulfill(StockPolicy.STOCKED, { stockQty: 5, confirmedQty: 2 }, 3)).toBe(true);
-    expect(canFulfill(StockPolicy.STOCKED, { stockQty: 5, confirmedQty: 2 }, 4)).toBe(false);
-    expect(canFulfill(StockPolicy.MADE_TO_ORDER, { stockQty: 0, confirmedQty: 100 }, 50)).toBe(true);
+  it("variantKey يتجاهل الفراغات حول المقاس واللون", () => {
+    expect(variantKey("p1", " L ", "أسود ")).toBe("p1|L|أسود");
+    expect(variantKey("p1", "L", "أسود")).toBe(variantKey("p1", "L ", " أسود"));
+  });
+
+  it("variantKey لا يخلط بين منتجين مختلفين بنفس المقاس واللون", () => {
+    expect(variantKey("p1", "L", "أسود")).not.toBe(variantKey("p2", "L", "أسود"));
   });
 
   it("totals and profit", () => {

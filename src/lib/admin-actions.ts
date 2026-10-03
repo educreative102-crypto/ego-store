@@ -9,6 +9,7 @@ import { nextSku } from "./order-keys";
 import { slugify } from "./slug";
 import { forceSyncSheets } from "./sheets/sync";
 import { CATALOG_TAG } from "./catalog";
+import { normalizeVariants } from "./product-input";
 import type { SyncResult } from "./sheets/sync";
 
 export interface VariantInput {
@@ -38,8 +39,21 @@ export async function saveProduct(input: ProductInput): Promise<{ ok: boolean; m
   await requireAdmin();
   const name = input.name.trim();
   if (!name) return { ok: false, message: "أدخل اسم المنتج" };
-  if (!(input.basePrice >= 0)) return { ok: false, message: "سعر البيع غير صحيح" };
-  const cleanVariants = input.variants.filter((v) => v.size.trim() && v.color.trim());
+
+  // القيمة يجب أن تكون رقمًا منتهٍ: الفحص القديم (>= 0) كان يمرّر Infinity،
+  // و (costPrice || 0) كان يقبل السالب لأن 0 هي الوحيدة الفاشية — فالتكلفة
+  // السالبة تجعل الربح أكبر من الإيراد في كل تقرير.
+  if (!Number.isFinite(input.basePrice) || input.basePrice < 0) {
+    return { ok: false, message: "سعر البيع غير صحيح" };
+  }
+  if (!Number.isFinite(input.costPrice) || input.costPrice < 0) {
+    return { ok: false, message: "سعر التكلفة غير صحيح" };
+  }
+  if (!Number.isInteger(input.leadTimeDays) || input.leadTimeDays < 1) {
+    return { ok: false, message: "مدة التجهيز يجب أن تكون يومًا واحدًا على الأقل" };
+  }
+
+  const cleanVariants = normalizeVariants(input.variants);
 
   const data = {
     name,
@@ -47,10 +61,10 @@ export async function saveProduct(input: ProductInput): Promise<{ ok: boolean; m
     category: input.category,
     stockPolicy: input.stockPolicy,
     basePrice: input.basePrice,
-    costPrice: input.costPrice || 0,
+    costPrice: input.costPrice,
     designName: input.designName.trim(),
     printDetails: input.printDetails.trim(),
-    leadTimeDays: input.leadTimeDays || 3,
+    leadTimeDays: input.leadTimeDays,
     images: JSON.stringify(input.images.filter(Boolean)),
     active: input.active,
     featured: input.featured,
@@ -66,9 +80,9 @@ export async function saveProduct(input: ProductInput): Promise<{ ok: boolean; m
         await tx.variant.createMany({
           data: cleanVariants.map((v) => ({
             productId: input.id!,
-            size: v.size.trim(),
-            color: v.color.trim(),
-            stockQty: Math.max(0, v.stockQty || 0),
+            size: v.size,
+            color: v.color,
+            stockQty: v.stockQty,
           })),
         });
       }
@@ -90,9 +104,9 @@ export async function saveProduct(input: ProductInput): Promise<{ ok: boolean; m
       slug,
       variants: {
         create: cleanVariants.map((v) => ({
-          size: v.size.trim(),
-          color: v.color.trim(),
-          stockQty: Math.max(0, v.stockQty || 0),
+          size: v.size,
+          color: v.color,
+          stockQty: v.stockQty,
         })),
       },
     },

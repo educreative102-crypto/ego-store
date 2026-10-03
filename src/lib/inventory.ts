@@ -17,9 +17,8 @@ export function isAvailable(policy: StockPolicy, balance: VariantBalance): boole
   return policy === StockPolicy.MADE_TO_ORDER || remaining(balance) > 0;
 }
 
-export function canFulfill(policy: StockPolicy, balance: VariantBalance, quantity: number): boolean {
-  if (policy === StockPolicy.MADE_TO_ORDER) return true;
-  return balance.stockQty - balance.confirmedQty >= quantity;
+export function variantKey(productId: string, size: string, color: string): string {
+  return `${productId}|${size.trim()}|${color.trim()}`;
 }
 
 export function lineTotal(unitPrice: number, quantity: number): number {

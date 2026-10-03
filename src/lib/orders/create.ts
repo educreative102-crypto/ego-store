@@ -1,6 +1,6 @@
 import { OrderSource, OrderStatus, PaymentMethod, PaymentStatus } from "@prisma/client";
 import { prisma } from "../prisma";
-import { orderTotal, orderCost } from "../inventory";
+import { orderTotal, orderCost, variantKey } from "../inventory";
 import { getSettings, bumpCounter } from "../settings";
 import { nextOrderNo } from "../order-keys";
 
@@ -43,6 +43,7 @@ export async function createOrderRecord(input: CreateOrderInput): Promise<Create
     include: { variants: true },
   });
   const productMap = new Map(products.map((p) => [p.id, p]));
+  const variantKeys = new Map(products.map((p) => [p.id, new Set(p.variants.map((v) => variantKey(p.id, v.size, v.color)))]));
 
   const items: {
     productId: string;
@@ -56,10 +57,19 @@ export async function createOrderRecord(input: CreateOrderInput): Promise<Create
   for (const line of cleanLines) {
     const product = productMap.get(line.productId);
     if (!product) return { ok: false, message: "منتج غير موجود" };
+    if (!product.active) return { ok: false, message: "منتج غير متاح للطلب" };
+
+    // الطلب يخزّن المقاس واللون كنص لا كـ variantId (انظر PLAN.md)، فبلا هذا
+    // الفحص يمكن لطلب مُنشأ أن يحمل مقاسًا غير موجود إطلاقًا — فيُحفظ ثم يرفضه
+    // التأكيد لاحقًا، أي طلب غير قابل للتأكيد أبدًا. نتحقق الآن عند الدخول.
+    if (!variantKeys.get(product.id)?.has(variantKey(product.id, line.size, line.color))) {
+      return { ok: false, message: "مقاس أو لون غير موجود في المنتج" };
+    }
+
     items.push({
       productId: product.id,
-      size: line.size,
-      color: line.color,
+      size: line.size.trim(),
+      color: line.color.trim(),
       quantity: line.quantity,
       unitPrice: product.basePrice,
       unitCost: product.costPrice,

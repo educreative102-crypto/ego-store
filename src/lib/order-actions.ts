@@ -11,6 +11,7 @@ import { nextInvoiceNo } from "./order-keys";
 import { triggerSheetsSync } from "./sheets/sync";
 import { CATALOG_TAG } from "./catalog";
 import { rateLimitHit } from "./rate-limit";
+import { variantKey } from "./inventory";
 
 const SOLD = [OrderStatus.CONFIRMED, OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED];
 const SITE_ORDER_LIMIT = { windowMs: 30 * 60_000, max: 5 };
@@ -86,8 +87,8 @@ async function confirmOrderAtomic(orderId: string, invoiceNo: string): Promise<v
             productName.set(p.id, p.name);
             productIds.add(p.id);
             if (p.stockPolicy === StockPolicy.MADE_TO_ORDER) continue;
-            for (const v of p.variants) variantIndex.set(`${v.productId}|${v.size}|${v.color}`, v);
-            const key = `${item.productId}|${item.size}|${item.color}`;
+            for (const v of p.variants) variantIndex.set(variantKey(v.productId, v.size, v.color), v);
+            const key = variantKey(item.productId, item.size, item.color);
             wanted.set(key, (wanted.get(key) ?? 0) + item.quantity);
           }
 
@@ -102,7 +103,7 @@ async function confirmOrderAtomic(orderId: string, invoiceNo: string): Promise<v
             });
             const confirmed = new Map<string, number>();
             for (const agg of aggs) {
-              const key = `${agg.productId}|${agg.size}|${agg.color}`;
+              const key = variantKey(agg.productId, agg.size, agg.color);
               confirmed.set(key, (confirmed.get(key) ?? 0) + (agg._sum.quantity ?? 0));
             }
             for (const [key, qty] of wanted) {
@@ -144,6 +145,13 @@ async function confirmOrderAtomic(orderId: string, invoiceNo: string): Promise<v
   }
 }
 
+const CANCELLABLE: OrderStatus[] = [
+  OrderStatus.PENDING,
+  OrderStatus.CONFIRMED,
+  OrderStatus.PAID,
+  OrderStatus.SHIPPED,
+];
+
 export async function cancelOrder(orderId: string): Promise<{ ok: boolean; message: string }> {
   await requireAdmin();
   const order = await prisma.order.findUnique({ where: { id: orderId } });
@@ -151,10 +159,25 @@ export async function cancelOrder(orderId: string): Promise<{ ok: boolean; messa
   if (order.status === OrderStatus.DELIVERED || order.status === OrderStatus.CANCELLED) {
     return { ok: false, message: "لا يمكن إلغاء طلب مغلق أو ملغى" };
   }
-  await prisma.order.update({
-    where: { id: orderId },
-    data: { status: OrderStatus.CANCELLED, paymentStatus: PaymentStatus.REFUNDED },
+
+  // الحارس هو الكتابة نفسها لا القراءة السابقة: طلب شُحن ووُصل بالتوازي كان
+  // يُكتب فوقه الملغى، فينسحب إيراده من كل تقرير بعد أن رآه موصّلًا.
+  // حالة الدفع جزء من الحارس لا مجرد مدخل للنسخ: لولا ذلك لسبق markPaid
+  // الكتابةَ بين القراءة والإلغاء، فيُلغى طلب مدفوع ويبقى عليه "مدفوع"
+  // بدل "مسترد" — أي بيع مفقود وتقرير خاطئ. والشيء نفسه في تقدّم الحالة.
+  const done = await prisma.order.updateMany({
+    where: { id: orderId, status: { in: CANCELLABLE }, paymentStatus: order.paymentStatus },
+    data: {
+      status: OrderStatus.CANCELLED,
+      paymentStatus:
+        order.paymentStatus === PaymentStatus.PAID ? PaymentStatus.REFUNDED : order.paymentStatus,
+      confirmedAt: null,
+    },
   });
+  if (done.count !== 1) {
+    return { ok: false, message: "تغيّرت حالة الطلب — أعد المحاولة" };
+  }
+
   revalidateTag(CATALOG_TAG, { expire: 0 });
   await triggerSheetsSync();
   return { ok: true, message: "تم الإلغاء — عاد المخزون للمصدر وانسحبت المبيعات" };
@@ -184,13 +207,20 @@ export async function advanceOrderState(
       : action === "markShipped"
         ? OrderStatus.SHIPPED
         : OrderStatus.DELIVERED;
-  await prisma.order.update({
-    where: { id: orderId },
+
+  // نفس منطق الإلغاء: الحالات المسموح بها شرط في الاستعلام لا فحص مسبق،
+  // وحالة الدفع محروسة كذلك حتى لا تُطمس علامة "مدفوع" سُجّلت بالتوازي.
+  const done = await prisma.order.updateMany({
+    where: { id: orderId, status: { in: allowed }, paymentStatus: order.paymentStatus },
     data: {
       status: next,
       paymentStatus: action === "markPaid" ? PaymentStatus.PAID : order.paymentStatus,
     },
   });
+  if (done.count !== 1) {
+    return { ok: false, message: "تغيّرت حالة الطلب — أعد المحاولة" };
+  }
+
   await triggerSheetsSync();
   return { ok: true, message: "تم تحديث حالة الطلب" };
 }
