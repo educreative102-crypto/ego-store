@@ -42,11 +42,11 @@ export default async function HomePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4">
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-bl from-primary-strong via-primary to-primary px-6 py-16 text-center text-white md:py-24">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF4F00] via-[#FF5A14] to-[#0B0B0F] px-6 py-16 text-center text-white md:py-24">
         <div className="pointer-events-none absolute -top-16 -left-16 h-64 w-64 rounded-full bg-white/10 blur-2xl" />
         <div className="pointer-events-none absolute -right-20 -bottom-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
         <div className="relative">
-          <p className="mx-auto mb-4 w-fit rounded-full bg-white/15 px-4 py-1.5 text-sm font-bold tracking-wide text-white/95 backdrop-blur">
+          <p className="mx-auto mb-4 w-fit rounded-full border border-border bg-surface/40 px-4 py-1.5 text-sm font-bold tracking-wide text-white backdrop-blur-md">
             {settings.shopName} — أوفرسايز ستريت وير
           </p>
           <h1 className="mx-auto max-w-2xl text-4xl font-black leading-tight md:text-5xl">
@@ -64,26 +64,29 @@ export default async function HomePage() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/products"
-              className="rounded-full bg-white px-7 py-3 font-black text-primary-strong shadow-md transition-transform hover:scale-[1.02]"
+              className="rounded-full px-7 py-3 font-black text-white shadow-[0_10px_60px_-20px_rgba(255,79,0,0.45)] transition-all duration-150 ease-out hover:scale-[1.02]"
+              style={{
+                backgroundImage: "linear-gradient(to right, #FF4F00, #FF9F1A)",
+              }}
             >
               تسوق الآن
             </Link>
             <Link
               href="/products?recipe=MADE_TO_ORDER"
-              className="rounded-full border border-white/40 px-7 py-3 font-bold text-white transition-colors hover:bg-white/10"
+              className="btn-ghost px-7 py-3 font-bold"
             >
               طلبية الطباعة
             </Link>
           </div>
 
           <div className="mt-9 flex flex-wrap items-center justify-center gap-2 text-sm">
-            <span className="rounded-full bg-white/15 px-4 py-1.5 font-semibold text-white/95 backdrop-blur">
+            <span className="rounded-full border border-border bg-surface/30 px-4 py-1.5 font-semibold text-white backdrop-blur-md">
               شام كاش / عند الاستلام
             </span>
-            <span className="rounded-full bg-white/15 px-4 py-1.5 font-semibold text-white/95 backdrop-blur">
+            <span className="rounded-full border border-border bg-surface/30 px-4 py-1.5 font-semibold text-white backdrop-blur-md">
               توصيل لعدة محافظات
             </span>
-            <span className="rounded-full bg-white/15 px-4 py-1.5 font-semibold text-white/95 backdrop-blur">
+            <span className="rounded-full border border-border bg-surface/30 px-4 py-1.5 font-semibold text-white backdrop-blur-md">
               طباعة مخصصة
             </span>
           </div>
@@ -94,31 +97,31 @@ export default async function HomePage() {
         {FEATURES.map((f) => (
           <div
             key={f.title}
-            className="rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm"
+            className="surface-card p-5"
           >
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary-soft text-primary-strong">
+            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary-soft text-white">
               <WhatsAppIcon className="h-5 w-5" />
             </span>
-            <p className="mt-3 font-black text-zinc-900">{f.title}</p>
-            <p className="mt-1 text-sm text-zinc-500">{f.desc}</p>
+            <p className="mt-3 font-black text-foreground">{f.title}</p>
+            <p className="mt-1 text-sm text-foreground-muted">{f.desc}</p>
           </div>
         ))}
       </section>
 
       <section className="mt-12">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-xl font-black text-zinc-900">
+          <h2 className="flex items-center gap-2 text-xl font-black text-foreground">
             أحدث القطع
-            <span className="rounded-full bg-primary-soft px-2.5 py-0.5 text-xs font-bold text-primary-strong">
+            <span className="rounded-full border border-primary-mist bg-primary-soft px-2.5 py-0.5 text-xs font-bold text-white">
               {displayFeatured.length}
             </span>
           </h2>
-          <Link href="/products" className="rounded-full px-3 py-1.5 text-sm font-bold text-primary-strong transition-colors hover:bg-primary-soft">
+          <Link href="/products" className="rounded-full px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-primary-soft">
             عرض الكل ←
           </Link>
         </div>
         {displayFeatured.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-zinc-300 p-10 text-center text-zinc-500">
+          <p className="rounded-2xl border border-dashed border-border p-10 text-center text-foreground-muted bg-surface/40">
             لا توجد منتجات بعد — أضف منتجاتك من لوحة التحكم
           </p>
         ) : (
@@ -138,35 +141,35 @@ export default async function HomePage() {
       <section className="mt-12 grid gap-4 md:grid-cols-2">
         <Link
           href="/products?category=HOODIE"
-          className="group relative overflow-hidden rounded-3xl from-primary-strong to-primary bg-gradient-to-bl p-8 text-white transition-transform hover:scale-[1.01]"
+          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF4F00] via-[#FF5A14] to-[#0B0B0F] p-8 text-white transition-transform duration-150 ease-out hover:scale-[1.01]"
         >
           <div className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-white/10 blur-xl" />
           <p className="text-2xl font-black">الهوديز</p>
           <p className="mt-1 text-white/85">
             {hoodiesAvailable} {hoodiesAvailable === 1 ? "قطعة متوفرة" : "قطعات متوفرة"} الآن
           </p>
-          <span className="mt-5 inline-flex rounded-full bg-white px-5 py-2 text-sm font-black text-primary-strong">
+          <span className="mt-5 inline-flex rounded-full border border-border bg-surface/40 px-5 py-2 text-sm font-black text-white backdrop-blur-md">
             تصفح الهوديز
           </span>
         </Link>
         <Link
           href="/products?category=TSHIRT"
-          className="group relative overflow-hidden rounded-3xl bg-zinc-900 p-8 text-white transition-transform hover:scale-[1.01]"
+          className="group relative overflow-hidden rounded-3xl border border-border bg-surface p-8 text-white transition-transform duration-150 ease-out hover:scale-[1.01]"
         >
           <div className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-white/5 blur-xl" />
           <p className="text-2xl font-black">تيشيرتات أوفرسايز</p>
-          <p className="mt-1 text-white/80">
+          <p className="mt-1 text-foreground-muted">
             {tshirtsAvailable} {tshirtsAvailable === 1 ? "قطعة متوفرة" : "قطعات متوفرة"} الآن
           </p>
-          <span className="mt-5 inline-flex rounded-full bg-primary px-5 py-2 text-sm font-black text-white transition-colors group-hover:bg-primary-strong">
+          <span className="mt-5 btn-primary">
             تصفح التيشيرتات
           </span>
         </Link>
       </section>
 
-      <section className="mt-12 rounded-3xl bg-primary-soft p-8 text-center md:p-10">
-        <h2 className="text-2xl font-black text-primary-hover">وما اللي ببالك؟</h2>
-        <p className="mx-auto mt-2 max-w-md text-sm text-zinc-600">
+      <section className="mt-12 rounded-3xl border border-primary-mist bg-primary-soft/60 p-8 text-center md:p-10">
+        <h2 className="text-2xl font-black text-white">وما اللي ببالك؟</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-foreground-muted">
           عندك فكرة أو تصميم أو عبارة تريدها على قطعتك؟ كلمنا على الواتساب ونفذها لك.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-3">
@@ -175,23 +178,23 @@ export default async function HomePage() {
               href={customPrintLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-bold text-white shadow-sm transition-colors hover:bg-primary-hover"
-            >
+                className="inline-flex items-center gap-2 btn-primary px-6 py-3"
+              >
               <WhatsAppIcon className="h-5 w-5" />
               اطبع فكرتك الخاصة
             </a>
           ) : (
-            <span className="rounded-full bg-zinc-200 px-6 py-3 font-bold text-zinc-400">
-              جاري تجهيز زر الطباعة
-            </span>
+              <span className="rounded-full border border-border-subtle bg-surface-2 px-6 py-3 font-bold text-foreground-muted">
+                جاري تجهيز زر الطباعة
+              </span>
           )}
           {chatLink ? (
             <a
               href={chatLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full border border-primary-strong/30 px-6 py-3 font-bold text-primary-strong transition-colors hover:bg-primary-mist"
-            >
+                className="btn-ghost px-6 py-3"
+              >
               كلمنا واتساب
             </a>
           ) : null}

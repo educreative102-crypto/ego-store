@@ -10,11 +10,11 @@ export async function StoreFooter() {
     : null;
 
   return (
-    <footer className="mt-auto border-t border-zinc-200 bg-zinc-50 no-print">
+    <footer className="mt-auto border-t border-border bg-surface/60 no-print">
       <div className="mx-auto max-w-6xl px-4 py-10">
-        <div className="grid gap-8 text-sm text-zinc-600 md:grid-cols-4">
+        <div className="grid gap-8 text-sm text-foreground-muted md:grid-cols-4">
           <div className="md:col-span-2">
-            <p className="mb-2 text-lg font-black text-zinc-900">{settings.shopName}</p>
+            <p className="mb-2 text-lg font-black text-foreground">{settings.shopName}</p>
             <p className="max-w-sm leading-relaxed">
               هوديز وتيشيرتات أوفرسايز — مطبوعة، خام، وطباعة مخصصة حسب ذوقك. يُطلب كل شيء عبر واتساب بسهولة.
             </p>
@@ -23,7 +23,7 @@ export async function StoreFooter() {
                 href={whatsappLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white transition-colors hover:bg-primary-hover"
+                className="mt-4 btn-primary"
               >
                 كلمنا واتساب
               </a>
@@ -31,7 +31,7 @@ export async function StoreFooter() {
           </div>
 
           <div>
-            <p className="mb-3 font-bold text-zinc-900">روابط سريعة</p>
+            <p className="mb-3 font-bold text-foreground">روابط سريعة</p>
             <ul className="space-y-2">
               <li><Link href="/products" className="transition-colors hover:text-primary-strong">الكتالوج</Link></li>
               <li><Link href="/about" className="transition-colors hover:text-primary-strong">عن المتجر</Link></li>
@@ -41,7 +41,7 @@ export async function StoreFooter() {
           </div>
 
           <div>
-            <p className="mb-3 font-bold text-zinc-900">تواصل معنا</p>
+            <p className="mb-3 font-bold text-foreground">تواصل معنا</p>
             <ul className="space-y-2">
               {settings.whatsappNumber ? (
                 <li>
@@ -67,7 +67,7 @@ export async function StoreFooter() {
           </div>
         </div>
 
-        <p className="mt-8 border-t border-zinc-200 pt-5 text-center text-xs text-zinc-400">
+        <p className="mt-8 border-t border-border-subtle pt-5 text-center text-xs text-foreground-muted">
           © {new Date().getFullYear()} {settings.shopName} — جميع الحقوق محفوظة
         </p>
       </div>

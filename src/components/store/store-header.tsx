@@ -17,7 +17,7 @@ export async function StoreHeader() {
   const customPrintLink = buildWhatsAppLink(settings.whatsappNumber, buildCustomPrintMessage(settings));
 
   return (
-    <header className="sticky top-0 z-40 border-b border-zinc-200 bg-background/90 backdrop-blur no-print">
+    <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md no-print shadow-[0_1px_0_rgba(255,255,255,0.02)]">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4">
         <Link href="/" className="flex items-center gap-2 rounded-full pr-1 transition-opacity hover:opacity-80">
           {settings.shopLogo ? (
@@ -33,7 +33,7 @@ export async function StoreHeader() {
               E
             </span>
           )}
-          <span className="text-lg font-black tracking-tight text-zinc-900">{settings.shopName}</span>
+          <span className="text-lg font-black tracking-tight text-foreground">{settings.shopName}</span>
         </Link>
 
         <StoreNav
@@ -46,12 +46,12 @@ export async function StoreHeader() {
             href={customPrintLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="hidden rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-hover md:inline-flex"
+            className="hidden btn-primary md:inline-flex"
           >
             اطبع فكرتك الخاصة
           </a>
         ) : (
-          <span className="hidden rounded-full bg-zinc-100 px-5 py-2.5 text-sm font-bold text-zinc-400 md:inline-flex">
+          <span className="hidden rounded-full border border-border-subtle bg-surface-2 px-5 py-2.5 text-sm font-bold text-foreground-muted md:inline-flex">
             اطبع فكرتك الخاصة
           </span>
         )}
