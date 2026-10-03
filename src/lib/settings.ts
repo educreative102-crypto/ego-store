@@ -14,7 +14,6 @@ export interface AppSettings {
   lowStockThreshold: number;
   googleSheetId: string;
   googleSheetStatus: string;
-  googleServiceAccountJson: string;
   lastSyncAt: string;
 }
 
@@ -30,7 +29,6 @@ const DEFAULTS: Record<string, string> = {
   lowStockThreshold: "5",
   googleSheetId: "",
   googleSheetStatus: "غير مربوط",
-  googleServiceAccountJson: "",
   adminPasswordHash: "",
   ORD_COUNTER: "0",
   INV_COUNTER: "0",
@@ -80,7 +78,6 @@ export const getSettings = cache(async function getSettings(): Promise<AppSettin
     lowStockThreshold: parseInt(map.lowStockThreshold, 10) || 5,
     googleSheetId: map.googleSheetId || "",
     googleSheetStatus: map.googleSheetStatus || DEFAULTS.googleSheetStatus,
-    googleServiceAccountJson: map.googleServiceAccountJson || "",
     lastSyncAt: map.lastSyncAt || "",
   };
 });

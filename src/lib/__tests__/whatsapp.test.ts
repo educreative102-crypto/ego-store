@@ -13,7 +13,6 @@ const settings = {
   lowStockThreshold: 5,
   googleSheetId: "",
   googleSheetStatus: "غير مربوط",
-  googleServiceAccountJson: "",
   lastSyncAt: "",
 };
 

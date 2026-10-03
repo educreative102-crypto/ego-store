@@ -8,3 +8,4 @@ alter table public."Order" disable row level security;
 alter table public."OrderItem" disable row level security;
 alter table public."Invoice" disable row level security;
 alter table public."Setting" disable row level security;
+alter table public."RateBucket" disable row level security;

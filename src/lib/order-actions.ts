@@ -4,24 +4,19 @@ import { OrderSource, OrderStatus, PaymentMethod, PaymentStatus, Prisma, StockPo
 import { revalidateTag } from "next/cache";
 import { prisma } from "./prisma";
 import { requireAdmin } from "./auth";
-import { orderTotal, orderCost } from "./inventory";
+import { createOrderRecord, type BuyLine } from "./orders/create";
 import { getSettings } from "./settings";
 import { bumpCounter } from "./settings";
-import { nextOrderNo, nextInvoiceNo } from "./order-keys";
+import { nextInvoiceNo } from "./order-keys";
 import { triggerSheetsSync } from "./sheets/sync";
 import { CATALOG_TAG } from "./catalog";
 import { rateLimitHit } from "./rate-limit";
 
-export interface BuyLine {
-  productId: string;
-  size: string;
-  color: string;
-  quantity: number;
-  printDetails?: string;
-}
+const SOLD = [OrderStatus.CONFIRMED, OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED];
+const SITE_ORDER_LIMIT = { windowMs: 30 * 60_000, max: 5 };
+const SITE_IP_ORDER_LIMIT = { windowMs: 30 * 60_000, max: 3 };
 
-interface CreateOrderInput {
-  source: OrderSource;
+export interface AdminOrderInput {
   customerName: string;
   customerPhone: string;
   paymentMethod: PaymentMethod;
@@ -29,77 +24,14 @@ interface CreateOrderInput {
   lines: BuyLine[];
 }
 
-const SOLD = [OrderStatus.CONFIRMED, OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED];
-const SITE_ORDER_LIMIT = { windowMs: 30 * 60_000, max: 5 };
-
-export async function createOrderRecord(input: CreateOrderInput): Promise<{
+export async function createAdminOrder(input: AdminOrderInput): Promise<{
   ok: boolean;
   message: string;
   orderId?: string;
   orderNo?: string;
 }> {
-  const cleanLines = input.lines.filter((l) => l.quantity > 0);
-  if (cleanLines.length === 0) {
-    return { ok: false, message: "لا توجد أصناف في الطلب" };
-  }
-  if (!input.customerName.trim()) {
-    return { ok: false, message: "أدخل اسم الزبون" };
-  }
-
-  const productIds = [...new Set(cleanLines.map((l) => l.productId))];
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    include: { variants: true },
-  });
-  const productMap = new Map(products.map((p) => [p.id, p]));
-
-  const items: {
-    productId: string;
-    size: string;
-    color: string;
-    quantity: number;
-    unitPrice: number;
-    unitCost: number;
-    printDetails: string;
-  }[] = [];
-  for (const line of cleanLines) {
-    const product = productMap.get(line.productId);
-    if (!product) return { ok: false, message: "منتج غير موجود" };
-    items.push({
-      productId: product.id,
-      size: line.size,
-      color: line.color,
-      quantity: line.quantity,
-      unitPrice: product.basePrice,
-      unitCost: product.costPrice,
-      printDetails: line.printDetails ?? "",
-    });
-  }
-
-  const settings = await getSettings();
-  const baseTotal = orderTotal(items.map((it) => ({ unitPrice: it.unitPrice, quantity: it.quantity })));
-  const totalAmount = +(baseTotal + settings.deliveryFee).toFixed(2);
-  const totalCost = orderCost(items.map((it) => ({ unitCost: it.unitCost, quantity: it.quantity })));
-
-  const orderNo = nextOrderNo(await bumpCounter("ORD_COUNTER"));
-
-  const order = await prisma.order.create({
-    data: {
-      orderNo,
-      source: input.source,
-      status: OrderStatus.PENDING,
-      customerName: input.customerName.trim(),
-      customerPhone: input.customerPhone.trim(),
-      paymentMethod: input.paymentMethod,
-      paymentStatus: PaymentStatus.PENDING,
-      totalAmount,
-      totalCost,
-      notes: input.notes ?? "",
-      items: { create: items },
-    },
-  });
-
-  return { ok: true, message: "تم إنشاء الطلب", orderId: order.id, orderNo };
+  await requireAdmin();
+  return createOrderRecord({ ...input, source: OrderSource.WHATSAPP });
 }
 
 export async function confirmOrder(orderId: string): Promise<{ ok: boolean; message: string }> {
@@ -123,7 +55,7 @@ export async function confirmOrder(orderId: string): Promise<{ ok: boolean; mess
   }
 
   revalidateTag(CATALOG_TAG, { expire: 0 });
-  triggerSheetsSync();
+  await triggerSheetsSync();
   return { ok: true, message: "تم تأكيد الطلب وخصم المخزون وإصدار الفاتورة" };
 }
 
@@ -224,7 +156,7 @@ export async function cancelOrder(orderId: string): Promise<{ ok: boolean; messa
     data: { status: OrderStatus.CANCELLED, paymentStatus: PaymentStatus.REFUNDED },
   });
   revalidateTag(CATALOG_TAG, { expire: 0 });
-  triggerSheetsSync();
+  await triggerSheetsSync();
   return { ok: true, message: "تم الإلغاء — عاد المخزون للمصدر وانسحبت المبيعات" };
 }
 
@@ -259,7 +191,7 @@ export async function advanceOrderState(
       paymentStatus: action === "markPaid" ? PaymentStatus.PAID : order.paymentStatus,
     },
   });
-  triggerSheetsSync();
+  await triggerSheetsSync();
   return { ok: true, message: "تم تحديث حالة الطلب" };
 }
 
@@ -307,13 +239,16 @@ export async function createSiteOrder(input: SiteOrderInput): Promise<{
       return { ok: false, message: "تفاصيل الطباعة طويلة جدًا" };
     }
   }
-  if (rateLimitHit(`order:${phone}`, SITE_ORDER_LIMIT)) {
+  if (await rateLimitHit(`order:phone:${phone}`, SITE_ORDER_LIMIT)) {
     return { ok: false, message: "طلبات كثيرة خلال فترة قصيرة — أعد المحاولة بعد قليل" };
+  }
+  if (await rateLimitHit(`order:ip:${await clientIp()}`, SITE_IP_ORDER_LIMIT)) {
+    return { ok: false, message: "طلبات كثيرة من هذا الجهاز — أعد المحاولة بعد قليل" };
   }
 
   const created = await createOrderRecord({
-    source: OrderSource.SITE,
     ...input,
+    source: OrderSource.SITE,
     customerPhone: phone,
   });
   if (!created.ok || !created.orderId) {
@@ -354,4 +289,10 @@ export async function createSiteOrder(input: SiteOrderInput): Promise<{
   }
 
   return { ok: true, message: "جاري فتح الواتساب", orderNo: created.orderNo, whatsappUrl: link ?? undefined };
+}
+
+async function clientIp(): Promise<string> {
+  const { headers } = await import("next/headers");
+  const h = await headers();
+  return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
 }

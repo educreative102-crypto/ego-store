@@ -92,6 +92,14 @@ model Setting {
   value String
 }
 
+model RateBucket {
+  key          String    @id
+  count        Int       @default(0)
+  windowStart  DateTime  @default(now())
+  blockedUntil DateTime?
+  touchedAt    DateTime  @default(now()) @updatedAt
+}
+
 enum Category {
   HOODIE
   TSHIRT

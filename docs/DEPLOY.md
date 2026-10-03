@@ -28,14 +28,16 @@
 Supabase تفعّل **Row Level Security** تلقائيًا على جداول `public` — وهذا **يحظر على Prisma كل قراءة/كتابة** حتى تحتفظ بصلاحياتيفعل. أنت لا تملك الجداول عبر `prisma db push`، لذا:
 - **الخيار الموصى به (الأبسط والأضمن):** قبل الاستعلام عن الجداول في التطبيق، نفّذ داخل SQL Editor في Supabase:
   ```sql
-  alter table public."Product"          disable row level security;
-  alter table public."Variant"          disable row level security;
-  alter table public."Order"            disable row level security;
-  alter table public."OrderItem"        disable row level security;
-  alter table public."Invoice"          disable row level security;
-  alter table public."Setting"          disable row level security;
+   alter table public."Product"          disable row level security;
+   alter table public."Variant"          disable row level security;
+   alter table public."Order"            disable row level security;
+   alter table public."OrderItem"        disable row level security;
+   alter table public."Invoice"          disable row level security;
+   alter table public."Setting"          disable row level security;
+   alter table public."RateBucket"       disable row level security;
   ```
   (الأسماء بعلامات تنصيص مزدوجة لأن Prisma يولّدها هكذا. إن لم توجد الجداول بعد: أنشئها أولًا بـ `db push` ثم نفّذ هذا السكربت — أو نفّذه بـ `npx prisma db execute` كما في الخطوة 3/4.)
+- ⚠️ **عند إضافة أي جدول جديد** (مثل `RateBucket`) نفّذ نفس الأمر له، وإلا أَجاب Postgres بـ `P2010` عند أول استدعاء لتحديد المعدّل. الملف الجاهز `scripts/disable-rls.sql` محدّث بكل الجداول.
 - البديل الأنظف: وعوضًا عن تعطيل RLS، اربط بـ **جدول بحساب الخدمة/المالك** مباشرة عبر Transaction pooler — Prisma تتصل كمالك الجدول، وRLS لا تُطبَّق على المالك في Supabase بوضع `FORCE ROW LEVEL SECURITY` غير المعمّل. احتفظ بهذا كخطة سقوط.
 
 ## 2) تحويل المشروع إلى PostgreSQL (مرة واحدة قبل النشر)
@@ -78,7 +80,8 @@ Supabase تفعّل **Row Level Security** تلقائيًا على جداول `p
 | المتغير | القيمة | ملاحظة |
 |---|---|---|
 | `DATABASE_URL` | رابط Supabase **Transaction pooler** (منفذ `6543`) مع `?pgbouncer=true&connection_limit=5` | **إلزامي** — منه تُقرأ كل بيانات المتجر |
-| `AUTH_SECRET` | سلسلة عشوائية 32+ حرفًا (ثابتة؛ تغييرها يطرد الجلسات) | **إلزامي** — بدونه يرمي `auth.ts` استثناءً ويفشل تسجيل الدخول كليًا |
+| `AUTH_SECRET` | سلسلة عشوائية 32+ حرفًا (ثابتة؛ تغييرها يطرد الجلسات) | **إلزامي** — بدونه يرمي `auth.ts` استثناءً ويفشل تسجيل الدخول كليًا. وغيابه يُبقي `/api/sheets/sync` مغلقًا (لا يقبل `Bearer` فارغًا) |
+| `GOOGLE_SA_JSON` | كامل JSON الخاص بـ Service Account في **سطر واحد** | **اختياري** — يُلزم فقط إن أردت مزامنة Google Sheets. لا يُخزَّن في قاعدة البيانات ولا يُرسل للمتصفح. راجع «ترحيل المفتاح» أدناه |
 | `APP_URL` | `https://<your-subdomain>.vercel.app` (أو نطاقك النهائي) | يُستخدم في `sitemap.xml` و`robots.txt` فقط |
 | `ADMIN_PASSWORD` | كلمة مرور لوحة الأدمين | **اختياري** — تُزرع مرة واحدة فقط إن كان `adminPasswordHash` فارغًا؛ بعدها غيّرها من `/admin/settings` |
 
@@ -94,17 +97,36 @@ Supabase تفعّل **Row Level Security** تلقائيًا على جداول `p
 Vercel ← **Settings ← Domains** ← أضف نطاقك ووثّق DNS وحدّث `APP_URL`.
 
 ## 7) مزامنة Google Sheets (اختيارية — تعمل بدونها)
-1. أنشئ Spreadsheet في Google واسمها مثل `EGO`.
+1. أنشئ Spreadsheet في Google واسمه مثل `EGO`.
 2. من Google Cloud Console أنشئ **Service Account** وحمّل مفتاح JSON.
-3. لوحة التحكم: `/admin/settings` ← الصق JSON الـ Service Account + معرّف الجدول.
-4. شارك الجدول مع بريد الـ Service Account (سماح محرر).
-5. زر "زامن الآن" في `/admin/reports`. دون ربط، المزامنة تتوقف بصمت ويظل المتجر يعمل.
+3. Vercel ← **Settings ← Environment Variables** ← أضف `GOOGLE_SA_JSON` بالقيمة الكاملة (سطر واحد، الـ JSON كما هو بلا أسطر جديدة).
+4. لوحة التحكم: `/admin/settings` ← ضع **معرّف الجدول فقط**. حقل مفتاح الخدمة لم يعد موجودًا هناك.
+5. شارك الجدول مع بريد الـ Service Account (سماح محرر).
+6. زر "زامن الآن" في `/admin/reports`. دون ربط، المزامنة تتوقف بصمت ويظل المتجر يعمل.
+
+### ترحيل المفتاح من قاعدة البيانات (لمتجر مُشغَّل قبل هذا التحديث)
+الكود يقرأ `GOOGLE_SA_JSON` أولًا، ويسقط إلى الصف القديم `googleServiceAccountJson` في جدول `Setting` كترحيل مؤقت (مع تحذير في logs). الخطوات:
+1. **قبل النشر**: افتح `/admin/settings` على النسخة الحالية وانسخ نص الـ JSON كاملًا (الحقل ما زال موجودًا هناك).
+2. أضفه كمتغير `GOOGLE_SA_JSON` ← **Redeploy**.
+3. تأكد في `/admin/reports` أن الحالة «متصل» وأن «زامن الآن» ينجح.
+4. **الآن** احذف السرّ نهائيًا:
+   ```sql
+   delete from "Setting" where key = 'googleServiceAccountJson';
+   ```
+5. بعد أسبوع، احذف مسار الترحيل (الدالة `serviceAccountJson`) من `src/lib/sheets/client.ts` ليصبح `GOOGLE_SA_JSON` إلزاميًا.
+
+> **لماذا؟** المفتاح كان يُخزَّن في `AppSettings` الذي يُمرَّر إلى مكوّنات العميل فيُسلسَل في HTML كل صفحة منتج لكل زائر — تسريب كامل للمفتاح الخاص. إخراجه من `AppSettings` يجعل التسريب مستحيلًا بنيويًا. الاختبار `src/lib/__tests__/settings-secrets.test.ts` يحرس ذلك ضد أي انحدار.
 
 ## 8) المراقبة ومزامنة يومية (اختيارية — بلا cron داخل المستودع)
 حُذف `vercel.json` كليًا: كان يحتوي cron يطلب `/api/health` كل 5 دقائق بلا أي مستهلك، وخطة Hobby تسمح بيوميًا فقط، وهو سبب شائع لفشل البناء (`Cron job` غير مسموح).
 
 - **مراقبة صعود/هبوط الموقع:** استخدم خدمة خارجية مثل **UptimeRobot** على `https://<نطاقك>/api/health` كل 5 دقائق — مجانية، وتنبيه بريد، ولا تمسّ Vercel.
-- **مزامنة يومية للجداول:** لم تعد هناك حاجة — المزامنة تحدث عند كل عملية بيع/إلغاء، وزر «زامن الآن» في `/admin/reports` يكفي. إن احتجتها يوميًا لاحقًا فأضف `vercel.json` بجدول `0 6 * * *` على `/api/sheets/sync` (المسار يفحص `Authorization: Bearer <AUTH_SECRET>`).
+- **مزامنة يومية للجداول:** لم تعد هناك حاجة — المزامنة تحدث عند كل عملية بيع/إلغاء (ومدمجة: عشر عمليات متتالية = كتابة واحدة)، وزر «زامن الآن» في `/admin/reports` يكفي. إن احتجتها يوميًا لاحقًا فأضف `vercel.json` بجدول `0 6 * * *` على `/api/sheets/sync` (المسار يفحص `Authorization: Bearer <AUTH_SECRET>` ويكتب فقط إن كان هناك تغيير غير مزامن).
+
+### كيف تُكتب الجداول بلا فقد بيانات
+`writeSheet` يرسل **نداء HTTP واحدًا** (`values.batchUpdate`) يحمل الكتابة الجديدة + مسح الذيل معًا، بدل `clear` ثم `update` في نداءين. السبب: في بيئة serverless كانت العملية تُقتل بين النداءين فيبقى التبويب **فارغًا**. الآن لا توجد نقطة انتظار بينهما؛ وأسوأ حالة ممكنة هي بقاء سطور قديمة تحت البيانات (عيب تجميلي).
+
+المزامنة نفسها تُقفل بـ `Setting.SHEETS_SYNC_LOCK` (كاش مدته 60 ثانية) فلا تتداخل كتابتان، وتُرفع `SHEETS_PENDING_AT` علامةً على وجود تغيير. مسحُها بعد نجاح الكتابة **مشروط** بلقطة زمنية تُلتقط قبل القراءة، فلا تُمسح طلبات تغيّرت أثناء المزامنة. التنفيذ داخل `after()` من `next/server` — لا `void async` — فيضمن Next بقاء الدالة حيّة حتى ينتهي تنفيذها (كما ينصّ `PLAN.md`).
 
 ## 9) استكشاف الأعطال
 | العَرَض | السبب | الحل |

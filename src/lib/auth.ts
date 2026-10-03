@@ -80,13 +80,13 @@ async function clientIp(): Promise<string> {
 
 export async function loginAdmin(plain: string): Promise<boolean> {
   const key = `login:${await clientIp()}`;
-  if (rateLimitHit(key, LOGIN_LIMIT)) return false;
+  if (await rateLimitHit(key, LOGIN_LIMIT)) return false;
   await ensureAdminPassword();
   const row = await prisma.setting.findUnique({ where: { key: "adminPasswordHash" } });
   if (!row?.value) return false;
   const ok = await compare(plain, row.value);
   if (ok) {
-    rateLimitClear(key);
+    await rateLimitClear(key);
     await setSession();
   }
   return ok;

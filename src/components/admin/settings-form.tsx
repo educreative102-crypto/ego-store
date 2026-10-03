@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { saveSettings, changeAdminPassword } from "@/lib/admin-actions";
-import { Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
+import { Button, Card, Field, Input, Select } from "@/components/ui";
 
 interface Props {
   settings: {
@@ -18,7 +18,6 @@ interface Props {
     lowStockThreshold: number;
     googleSheetId: string;
     googleSheetStatus: string;
-    googleServiceAccountJson: string;
   };
 }
 
@@ -35,7 +34,6 @@ export function SettingsForm({ settings }: Props) {
     deliveryFee: String(settings.deliveryFee),
     lowStockThreshold: String(settings.lowStockThreshold),
     googleSheetId: settings.googleSheetId,
-    googleServiceAccountJson: settings.googleServiceAccountJson,
   });
   const [newPassword, setNewPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -60,7 +58,6 @@ export function SettingsForm({ settings }: Props) {
       deliveryFee: String(parseFloat(form.deliveryFee) || 0),
       lowStockThreshold: String(parseInt(form.lowStockThreshold, 10) || 5),
       googleSheetId: form.googleSheetId,
-      googleServiceAccountJson: form.googleServiceAccountJson,
     });
     setBusy(false);
     setMessage({ type: res.ok ? "ok" : "err", text: res.message });
@@ -129,9 +126,13 @@ export function SettingsForm({ settings }: Props) {
           <Field label="معرف الجدول أو رابطه">
             <Input value={form.googleSheetId} onChange={(e) => set("googleSheetId", e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/... أو المعرف فقط" dir="ltr" />
           </Field>
-          <Field label="مفتاح الخدمة (Service Account JSON)" hint="ألصق كامل الـ JSON — يُحفظ داخل قاعدة بياناتك">
-            <Textarea value={form.googleServiceAccountJson} onChange={(e) => set("googleServiceAccountJson", e.target.value)} rows={5} />
-          </Field>
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900">
+            مفتاح الخدمة (Service Account JSON) صار يُضبط في متغير البيئة{" "}
+            <code className="font-black">GOOGLE_SA_JSON</code> على Vercel — ولا يُخزَّن في قاعدة
+            البيانات ولا يُرسل للمتصفح. المفتاح الحالي المخزّن يُستخدم للترحيل فقط؛ انقله إلى
+            المتغير ثم احذف الصف <code className="font-black">googleServiceAccountJson</code> من
+            جدول <code className="font-black">Setting</code>.
+          </p>
         </div>
       </Card>
 

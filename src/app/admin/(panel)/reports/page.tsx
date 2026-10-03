@@ -4,6 +4,7 @@ import { getSettings } from "@/lib/settings";
 import { money, formatDateTime } from "@/lib/format";
 import { profit, profitMargin } from "@/lib/inventory";
 import { aggregateSoldItems, type ProductAggregate, type SoldLine } from "@/lib/report-aggregates";
+import { sheetsConfigured } from "@/lib/sheets/client";
 import { Badge, Card } from "@/components/ui";
 import { SyncNowButton } from "@/components/admin/sync-now-button";
 
@@ -139,9 +140,7 @@ export default async function ReportsPage() {
     { label: `ربح الشهر ${settings.currency}`, value: profit(monthRevenue, monthCost).toFixed(2) },
   ];
 
-  const sheetConfigured = Boolean(
-    settings.googleServiceAccountJson.trim() && settings.googleSheetId.trim()
-  );
+  const sheetConfigured = await sheetsConfigured();
 
   return (
     <div className="space-y-6">

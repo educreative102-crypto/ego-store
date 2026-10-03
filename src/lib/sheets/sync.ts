@@ -1,6 +1,7 @@
 import { StockPolicy, OrderStatus, OrderSource } from "@prisma/client";
+import { after } from "next/server";
 import { prisma } from "../prisma";
-import { getSettings, setSetting } from "../settings";
+import { setSetting } from "../settings";
 import { ensureTabs, getSheetsApi, writeSheet, TAB_NAMES, sheetsConfigured } from "./client";
 import { remaining } from "../inventory";
 import { formatDate } from "../format";
@@ -14,25 +15,117 @@ export interface SyncResult {
 
 const SOLD_STATUSES = [OrderStatus.CONFIRMED, OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.DELIVERED];
 
-export function triggerSheetsSync(): void {
-  void (async () => {
-    try {
-      const settings = await getSettings();
-      if (!sheetsConfigured(settings)) return;
-      await syncSheets();
-    } catch {
-      // مزامنة خلفية اختيارية — لا تُسقط العملية الحالية
-    }
-  })();
+const PENDING_AT_KEY = "SHEETS_PENDING_AT";
+const LOCK_KEY = "SHEETS_SYNC_LOCK";
+const LOCK_TTL_MS = 60_000;
+
+// يعلّم الحاجة لمزامنة: كتابة صف واحد (رخيصة وتتكاثر تلقائيًا، عشر تغييرات
+// متتالية = كتابة واحدة عند التصريف).
+//
+// ننتظر كتابة العَلَم قبل العودة. لو تركناها `void` لكانت تفounced على استجابة
+// قد تُجمَّد أو تُقتل قبل وصولها لقاعدة البيانات، فيضيع الطلب بصمت.
+// ثم نضع العمل الثقيل داخل after() من next/server لا setTimeout: يضمن Next بقاء
+// الدالة حيّة حتى ينتهي تنفيذها — وهو ما ينصّ عليه PLAN.md صراحةً.
+export async function triggerSheetsSync(): Promise<void> {
+  try {
+    await markPending();
+  } catch (error) {
+    console.error("[sheets] تعذّر تسجيل طلب المزامنة:", error);
+    return;
+  }
+  try {
+    after(async () => {
+      await drainSheetsSync();
+    });
+  } catch (error) {
+    console.error("[sheets] تعذّر جدولة المزامنة بعد الاستجابة:", error);
+  }
 }
 
-export async function syncSheets(): Promise<SyncResult> {
-  const settings = await getSettings();
-  const api = getSheetsApi(settings);
+async function markPending(): Promise<void> {
+  await setSetting(PENDING_AT_KEY, new Date().toISOString());
+}
+
+async function acquireLock(): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const staleIso = new Date(Date.now() - LOCK_TTL_MS).toISOString();
+  try {
+    await prisma.setting.create({ data: { key: LOCK_KEY, value: "" } });
+  } catch (error) {
+    if ((error as { code?: string })?.code !== "P2002") throw error;
+  }
+  const taken = await prisma.setting.updateMany({
+    where: {
+      key: LOCK_KEY,
+      OR: [{ value: { lt: staleIso } }, { value: "" }],
+    },
+    data: { value: nowIso },
+  });
+  return taken.count === 1;
+}
+
+async function releaseLock(): Promise<void> {
+  await prisma.setting
+    .updateMany({ where: { key: LOCK_KEY }, data: { value: "" } })
+    .catch(() => undefined);
+}
+
+// القيم نصوص ISO فينطقها الترتيب المعجمي = الترتيب الزمني.
+async function clearPendingUpTo(snapshotAt: string): Promise<void> {
+  await prisma.setting.updateMany({
+    where: {
+      key: PENDING_AT_KEY,
+      OR: [{ value: { lt: snapshotAt } }, { value: "" }],
+    },
+    data: { value: "" },
+  });
+}
+
+export async function drainSheetsSync(options: { force?: boolean } = {}): Promise<SyncResult> {
+  if (!(await sheetsConfigured())) {
+    await setSetting("googleSheetStatus", "غير مربوط");
+    return { ok: false, message: "المزامنة غير مفعلة — اربط الجدول من الإعدادات" };
+  }
+
+  if (!(await acquireLock())) {
+    return { ok: false, message: "مزامنة أخرى قيد التنفيذ — تم دمج الطلب" };
+  }
+
+  try {
+    const [pendingRow, lastRow] = await Promise.all([
+      prisma.setting.findUnique({ where: { key: PENDING_AT_KEY } }),
+      prisma.setting.findUnique({ where: { key: "lastSyncAt" } }),
+    ]);
+    const pendingAt = pendingRow?.value ?? "";
+    if (!pendingAt) {
+      if (!options.force) return { ok: true, message: "لا توجد تغييرات تحتاج مزامنة" };
+    } else if (!options.force && (lastRow?.value ?? "") >= pendingAt) {
+      return { ok: true, message: "الجدول محدث بالفعل" };
+    }
+    return await syncSheets();
+  } finally {
+    await releaseLock();
+  }
+}
+
+// زر «زامن الآن»: يمرّ بنفس القفل كي لا تتقاطع مع مزامنة خلفية جارية،
+// لكنه يتجاوز اختصار «لا جديد» لأن الأدمن طلب مزامنة صريحة.
+export async function forceSyncSheets(): Promise<SyncResult> {
+  await markPending();
+  return drainSheetsSync({ force: true });
+}
+
+// غير مصدَّرة عمدًا: كل المزامنة تمرّ من drainSheetsSync حتى تُقفل ولا تتداخل.
+async function syncSheets(): Promise<SyncResult> {
+  const api = await getSheetsApi();
   if (!api) {
     await setSetting("googleSheetStatus", "غير مربوط");
     return { ok: false, message: "المزامنة غير مفعلة — اربط الجدول من الإعدادات" };
   }
+
+  // لقطة زمنية قبل قراءة البيانات: لا نمسح علم "يحتاج مزامنة" إلا إذا لم يتغيّر
+  // بعد هذه اللحظة — وإلا مسحنا طلب تغيّر أثناء القراءة فبقي الجدول ناقصًا.
+  const snapshotAt = new Date().toISOString();
 
   try {
     const products = await prisma.product.findMany({
@@ -171,8 +264,9 @@ export async function syncSheets(): Promise<SyncResult> {
       await writeAll();
     }
 
-    await setSetting("googleSheetStatus", "متصل");
     await setSetting("lastSyncAt", new Date().toISOString());
+    await clearPendingUpTo(snapshotAt);
+    await setSetting("googleSheetStatus", "متصل");
     return {
       ok: true,
       message: "تمت المزامنة بنجاح",

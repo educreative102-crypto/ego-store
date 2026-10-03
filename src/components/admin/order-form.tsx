@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { OrderSource } from "@prisma/client";
 import type { ProductWithBalance } from "@/lib/catalog";
 import type { AppSettings } from "@/lib/settings";
-import { createOrderRecord } from "@/lib/order-actions";
+import { createAdminOrder } from "@/lib/order-actions";
 import { money } from "@/lib/format";
 import { Button, Field, Input, Textarea } from "@/components/ui";
 
@@ -69,8 +68,7 @@ export function OrderForm({ products, settings }: { products: ProductWithBalance
       return;
     }
     setBusy(true);
-    const res = await createOrderRecord({
-      source: OrderSource.WHATSAPP,
+    const res = await createAdminOrder({
       customerName,
       customerPhone,
       paymentMethod,
@@ -93,8 +91,6 @@ export function OrderForm({ products, settings }: { products: ProductWithBalance
       router.refresh();
     }
   }
-
-  const selectedVariantCount = lines.filter((l) => l.product.stockPolicy === "STOCKED").length;
 
   return (
     <form onSubmit={submit} className="space-y-6">
@@ -186,7 +182,6 @@ export function OrderForm({ products, settings }: { products: ProductWithBalance
                       className="rounded-lg border border-zinc-300 px-2 py-2 text-sm"
                       value={l.size}
                       onChange={(e) => updateLine(i, { size: e.target.value })}
-                      disabled={l.product.stockPolicy === "STOCKED" ? !selectedVariantCount : false}
                     >
                       <option value="">مقاس...</option>
                       {[...new Set(l.product.variants.map((v) => v.size))].map((s) => (

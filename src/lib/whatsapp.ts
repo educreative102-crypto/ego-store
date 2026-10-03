@@ -41,7 +41,7 @@ export function buildOrderMessage(
     parts.push(line);
   }
   const baseTotal = lines.reduce((sum, l) => sum + l.unitPrice * l.quantity, 0);
-  const total = baseTotal + (opts.hasMadeToOrder ? 0 : 0) + settings.deliveryFee;
+  const total = baseTotal + settings.deliveryFee;
   if (settings.deliveryFee > 0) {
     parts.push(`التوصيل: ${money(settings.deliveryFee, settings.currency, settings.currencyPosition)}`);
   }

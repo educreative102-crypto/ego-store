@@ -8,6 +8,7 @@
 اقرأ `docs/PLAN.md` + `docs/PROGRESS.md` + `AGENTS.md` ثم تابع من آخر مهمة غير مكتملة أدناه.
 
 ## المهام
+- [x] 2.7 تدقيق أمني/منطقي شامل + إصلاح الثغرات الحرجة (تسريب مفتاح الخدمة، Server Action بلا حراسة، تحديد معدل في الذاكرة، fail-open، فقد بيانات الشيتس)
 - [x] 1.1 ملفات الذاكرة (PLAN/PROGRESS/AGENTS/README) + commit أول
 - [x] 1.2 تهيئة Next.js + TypeScript + Tailwind + Prisma (SQLite محلي / Postgres للإنتاج لاحقًا)
 - [x] 1.3 الإعدادات + تسجيل دخول الأدمين + حماية `/admin`
@@ -40,6 +41,29 @@
 - `OrderItem.unitCost` هو العمود الوحيد الذي كانت تقرأه صفحة التقارير وحدها — لذا كانت بقية صفحات الأدمن تعمل سليمًا.
 - **بانتظار التأكيد:** نفّذ `npx prisma db push` على قاعدة الإنتاج إن كان العمود ناقصًا، حتى تعود التكلفة في التقرير.
 - **مشكلة منفصلة:** كلمة مرور قاعدة البيانات في `.env` المحلي خاطئة (`28P01 password authentication failed`) — يجب لصق كلمة المرور الحقيقية من Supabase قبل أي اختبار محلي.
+
+## تدقيق أمني + إصلاح الثغرات الحرجة (مكتمل محليًا — يحتاج خطوة نشر واحدة)
+التقييم: **نواة احترافية داخل هيكل بدائي** — منطق العمل 9/10، الأمان 3/10، قابلية التوسع 3/10. الاختبارات 31/31 ناجحة، `eslint` نظيف، `tsc --noEmit` نظيف، `npm run build` ناجح.
+
+الاختبارات المضافة: `settings-secrets.test.ts` (3) + `rate-limit.test.ts` (5) + `sheets-tabs.test.ts` (3)، وبقيت الـ20 الأصلية كما هي.
+
+### ما أُصلح
+- **تسريب مفتاح الخدمة (الأخطر):** كان `googleServiceAccountJson` جزءًا من `AppSettings`، و`AppSettings` يُمرَّر إلى `<OrderButton>` (مكوّن عميل) فيُسلسَل المفتاح الخاص في HTML **لكل زائر**. أُخرج الحقل من `AppSettings` ومن نموذج الإعدادات، والقراءة الآن من متغير البيئة `GOOGLE_SA_JSON` عبر دالة خاصة في `src/lib/sheets/client.ts`. أُضيف اختبار `settings-secrets.test.ts` يفحص غياب أي اسم مفتاح من `AppSettings`. تحقّق إضافي: الحقل لم يعد يظهر في حزم الخادم الخاصة بصفحات المتجر (بقي فقط في تنبيه الأدمن وفي مسار الترحيل).
+- **Server Action بلا حراسة:** كانت `createOrder` الداخلية (غير مصدَّرة) تعمل بلا `requireAdmin()`، وأي استدعاء لها كـ Server Action كان يمرّ من حدّ الثقة العمومي. فُصلت إلى `src/lib/orders/create.ts` (دالة داخلية)، وكُشفت `createAdminOrder` (بـ `requireAdmin` + `source=WHATSAPP`) و`createSiteOrder` (يفرض `source=SITE` **بعد** `...input` فلا يُزوَّر من المتصفح، + حدّ معدل بالهاتف وIP).
+- **تحديد المعدّل في الذاكرة:** كان `Map` في نسخة واحدة — على Vercel كل استدعاء ينتهي في نسخة مستقلة، فكان الحدّ غير فعّال تقريبًا. استُبدل بـ `RateBucket` في Postgres بتحديث CAS (compare-and-swap)، فصار العدّاد مشتركًا بين النسخ. مُغطّى بـ `rate-limit.test.ts` (تشابه ثمانية، فصل المفاتيح، منطق الحجب).
+- **fail-open في `/api/sheets/sync`:** كان `Bearer` الفارغ يمرّ إن كان `AUTH_SECRET` فارغًا. صار يرفض (`AUTH_SECRET` إلزامي، و`auth.ts` يرمي استثناءً أصلًا إن كان فارغًا).
+- **فقد بيانات في الشيتس:** `writeSheet` كان يرسل `clear()` ثم `update()`؛ لو قُتلت العملية بينهما لبقى التبويب **فارغًا**. صار نداءً واحدًا `values.batchUpdate`. وأُضيف قفل `SHEETS_SYNC_LOCK` + دمج محاولات عبر `SHEETS_PENDING_AT` (مسحها مشروط بلقطة زمنية) — نصّ `PLAN.md` على تجنّب `void async`، والتنفيذ الآن داخل `after()`.
+- **`ensureTabs` كان يُسقط كل مزامنة على جدول مُهيّأ:** أرسل `addSheet` للتبويبات الأربعة دائمًا، و`addSheet` يفشل بـ 400 إن كان الاسم موجودًا. عاد يفحص التبويبات الحالية ويضيف الناقص فقط (و`syncSheets` صارت غير مصدَّرة، وكل مزامنة تمرّ من `drainSheetsSync` المقفلة).
+- **علامة «يحتاج مزامنة» كانت قد تضيع:** `triggerSheetsSync` كانت تكتب `SHEETS_PENDING_AT` بـ `void` (fire-and-forget) قبل `after()`، والاستجابة قد تُجمَّد قبل وصولها للقاعدة. صارت `await` ثم `after()`.
+- **زر «زامن الآن» كان يتجاوز القفل:** كان ينادي `syncSheets()` مباشرة فيمكن أن يتقاطع مع مزامنة خلفية. صار يمرّ من `forceSyncSheets()` بنفس القفل مع تجاوز اختصار «لا جديد».
+
+### المتطلّب قبل النشر (لا يُنسى)
+1. `npx prisma db push` لإنشاء جدول `RateBucket` على Supabase.
+2. `alter table public."RateBucket" disable row level security;` (الملف `scripts/disable-rls.sql` محدّث) — وإلا أَجاب Postgres بـ `P2010` عند أول تسجيل دخول.
+3. **ترحيل المفتاح:** انسخ JSON الحالي من `/admin/settings` على النسخة المنشورة **قبل** النشر، أضفه كمتغير `GOOGLE_SA_JSON`، أعد النشر، تأكد من `/admin/reports`، ثم `delete from "Setting" where key = 'googleServiceAccountJson';`. الخطوات في `docs/DEPLOY.md`.
+
+### ما لم يتغيّر (بلاء)
+منطق الجرد، الخصم عند التأكيد، الفاتورة مرة واحدة، الإلغاء العكسي، تكلفة لحظة الطلب، وحالات الطلب — كلها كما هي. الاختبارات الأصلية (20) ما زالت ناجحة بلا تعديل.
 
 ## فشل البناء بسبب استعلام وقت البناء + تنظيف cron
 - **السبب المؤكد لثلاث محاولات بناء فاشلة:** `src/app/sitemap.ts` كان يُنفَّذ كصفحة static وقت البناء، فيستدعي `prisma.product.findMany()` — وأي خطأ في `DATABASE_URL` كان يُسقط البناء كاملًا بـ `Error occurred prerendering page "/sitemap.xml"`.

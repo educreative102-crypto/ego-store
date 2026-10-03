@@ -7,7 +7,7 @@ import { requireAdmin } from "./auth";
 import { bumpCounter, setSettingsMany, setAdminPassword } from "./settings";
 import { nextSku } from "./order-keys";
 import { slugify } from "./slug";
-import { syncSheets } from "./sheets/sync";
+import { forceSyncSheets } from "./sheets/sync";
 import { CATALOG_TAG } from "./catalog";
 import type { SyncResult } from "./sheets/sync";
 
@@ -136,5 +136,5 @@ export async function changeAdminPassword(plain: string): Promise<{ ok: boolean;
 
 export async function syncSheetsNow(): Promise<SyncResult> {
   await requireAdmin();
-  return syncSheets();
+  return forceSyncSheets();
 }
