@@ -22,6 +22,11 @@
      ```
    - > انتبه للفروق الحاسمة: المستخدم `postgres.PROJECT_REF` (وليس `postgres`)، والعنوان `...pooler.supabase.com:6543`.
    - **قيمة `connection_limit`:** نستخدم **`5`** وليس `1`. `1` يسبب `P2024 (Timed out fetching a new connection)` عند أي تزامن (الصفحة تستدعي إعدادات من عدة مكوّنات + 3 كتالوجات متوازية). `5` آمنة لمتجرنا ولا تُرهق خطة Free.
+   - أنشئ رابطًا ثانيًا من **Session pooler**: نفس المضيف والمستخدم وكلمة المرور، لكن المنفذ `5432` وبدون `pgbouncer`:
+     ```
+     postgresql://postgres.PROJECT_REF:DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:5432/postgres
+     ```
+     هذا الرابط يُحفظ في `DIRECT_URL` وتستخدمه أوامر المخطط (`db push` / `migrate` / `db execute`). السبب: وضع Transaction Pooler لا يدعم Prepared Statements، فتظهر `prepared statement "s0" already exists` مع أوامر Prisma CLI.
    - > فعلنا أيضًا داخل التطبيق: `getSettings` مكشوفة بـ React `cache()` ليُدمج الاستدعاءات المتوازية في نفس العرض.
 
 ### 🚨 RLS (الأهم في Supabase)
@@ -40,32 +45,30 @@ Supabase تفعّل **Row Level Security** تلقائيًا على جداول `p
 - ⚠️ **عند إضافة أي جدول جديد** (مثل `RateBucket`) نفّذ نفس الأمر له، وإلا أَجاب Postgres بـ `P2010` عند أول استدعاء لتحديد المعدّل. الملف الجاهز `scripts/disable-rls.sql` محدّث بكل الجداول.
 - البديل الأنظف: وعوضًا عن تعطيل RLS، اربط بـ **جدول بحساب الخدمة/المالك** مباشرة عبر Transaction pooler — Prisma تتصل كمالك الجدول، وRLS لا تُطبَّق على المالك في Supabase بوضع `FORCE ROW LEVEL SECURITY` غير المعمّل. احتفظ بهذا كخطة سقوط.
 
-## 2) تحويل المشروع إلى PostgreSQL (مرة واحدة قبل النشر)
-1. شغّل السكربت الجاهز (يبدّل `prisma/schema.prisma` من sqlite إلى postgresql):
-   ```powershell
-   .\scripts\switch-db.ps1 -Target postgres
-   ```
-2. عُدّل المتغيّر في `.env` محليًا (رابط Supabase من الخطوة 1):
+## 2) المتغيّرات المحلية (مرة واحدة)
+1. في `.env` المحلي ضع الرابطين من الخطوة 1:
    ```
    DATABASE_URL="postgresql://postgres.PROJECT_REF:DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5"
+   DIRECT_URL="postgresql://postgres.PROJECT_REF:DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
    ```
-3. ادفع قاعدة البيانات وأنشئ العميل:
+   `prisma/schema.prisma` يحتوي أصلًا `url = env("DATABASE_URL")` و`directUrl = env("DIRECT_URL")`، فلا تعدّل المخطط.
+2. ادفع قاعدة البيانات وأنشئ العميل:
    ```powershell
    npx prisma db push
    npx prisma generate
    ```
-4. نفّذ سكربت RLS (تعطيل RLS للجداول الستة) — الملف الجاهز `scripts/disable-rls.sql`:
+   `db push` يمرّ تلقائيًا عبر `DIRECT_URL` (Session pooler)، فلا يصطدم بقيود Prepared Statements.
+3. نفّذ سكربت RLS (تعطيل RLS للجداول السبعة) — الملف الجاهز `scripts/disable-rls.sql`:
    ```powershell
    npx prisma db execute --file scripts\disable-rls.sql --schema prisma\schema.prisma
    ```
    (أو الصقه في Supabase SQL Editor ثم Run.)
 
-## 3) الاطلاع/التطوير المحلي بعد التحويل
-السكربت يُعيدك لـ SQLite بنقرة:
-```powershell
-.\scripts\switch-db.ps1 -Target sqlite
-```
-(ثم اجعل `DATABASE_URL="file:./dev.db"` محليًا). التطوير اليومي يبقى على SQLite السريعة؛ والنشر فقط على Supabase.
+## 3) التطوير المحلي
+التطوير الآن مباشرة على قاعدة Supabase نفسها عبر الرابطين أعلاه — لا يوجد تبديل إلى SQLite ولا سكربت `switch-db.ps1` (حُذف لأن المخطط صار PostgreSQL دائمًا مع `directUrl`).
+- `npm run dev` يقرأ `DATABASE_URL` (Transaction pooler).
+- أي أمر مخطط (`db push`/`db execute`) يقرأ `DIRECT_URL` تلقائيًا.
+- إن أردت بيئة معزولة محليًا: ثبّت PostgreSQL محليًا وضع رابطيه في `.env` بنفس الأسماء.
 
 ## 4) الرفع إلى GitHub ثم Vercel
 1. أنشئ مستودعًا خاصًا في https://github.com/new (اختياري: عام ثم اجعله خاصًا لاحقًا).
@@ -80,12 +83,13 @@ Supabase تفعّل **Row Level Security** تلقائيًا على جداول `p
 | المتغير | القيمة | ملاحظة |
 |---|---|---|
 | `DATABASE_URL` | رابط Supabase **Transaction pooler** (منفذ `6543`) مع `?pgbouncer=true&connection_limit=5` | **إلزامي** — منه تُقرأ كل بيانات المتجر |
+| `DIRECT_URL` | رابط Supabase **Session pooler** (منفذ `5432`، بدون `pgbouncer`) | يُستخدم لأوامر المخطط فقط (`db push`/`migrate`/`db execute`). غير مطلوب وقت تشغيل التطبيق، لكن أضفه إن كنت تنفّذ أوامر Prisma من داخل Vercel |
 | `AUTH_SECRET` | سلسلة عشوائية 32+ حرفًا (ثابتة؛ تغييرها يطرد الجلسات) | **إلزامي** — بدونه يرمي `auth.ts` استثناءً ويفشل تسجيل الدخول كليًا. وغيابه يُبقي `/api/sheets/sync` مغلقًا (لا يقبل `Bearer` فارغًا) |
 | `GOOGLE_SA_JSON` | كامل JSON الخاص بـ Service Account في **سطر واحد** | **اختياري** — يُلزم فقط إن أردت مزامنة Google Sheets. لا يُخزَّن في قاعدة البيانات ولا يُرسل للمتصفح. راجع «ترحيل المفتاح» أدناه |
 | `APP_URL` | `https://<your-subdomain>.vercel.app` (أو نطاقك النهائي) | يُستخدم في `sitemap.xml` و`robots.txt` فقط |
 | `ADMIN_PASSWORD` | كلمة مرور لوحة الأدمين | **اختياري** — تُزرع مرة واحدة فقط إن كان `adminPasswordHash` فارغًا؛ بعدها غيّرها من `/admin/settings` |
 
-> **لا تضف `DATABASE_URL_UNPOOLED`** — الكود لا يقرأه إطلاقًا، وإضافته تسبّب ارتباكًا بلا فائدة.
+> **لا تضف `DATABASE_URL_UNPOOLED`** — الكود لا يقرأه إطلاقًا. البديل المدعوم رسميًا من Prisma هو `DIRECT_URL` (موجود في `schema.prisma`).
 
 **من أين تجيب كلمة مرور القاعدة:** Project Settings ← Database ← Database password (زر إظهار/نسخ)، أو **Reset database password** إن نسيتها — ولا يمسّ البيانات. ⚠️ لا تكتب النص الحرفي `[YOUR-PASSWORD]`، ولا تنسخ كلمة المرور من `.env` المحلي (قد تكون قديمة).
 
@@ -135,6 +139,8 @@ Vercel ← **Settings ← Domains** ← أضف نطاقك ووثّق DNS وحد�
 | `git push` لا يُنتج deployment | Vercel **علّق النشر التلقائي** بعد محاولات بناء فاشلة متتالية | Deployments ← شريط `Automatic deployments are paused` ← **Resume deployments** |
 | `git push` لا يُنتج deployment (ولا شريط إيقاف) | ربط Git أو صلاحية GitHub App | Settings ← Git ← المستودع `main` + **Disable Automatic Deployments** OFF + GitHub ← Settings ← Applications ← Vercel ← المستودع مُدرج |
 | `Authentication failed against database server` | كلمة مرور القاعدة خاطئة أوPlaceholder | أعد خطوة 5 أعلاه |
+| `Schema engine error: prepared statement "s0" already exists` | `db push`/`migrate` عبر Transaction pooler (6543) الذي لا يدعم Prepared Statements | أضف `DIRECT_URL` (Session pooler، منفذ `5432` بدون `pgbouncer`) وأعد تنفيذ الأمر — موجود في `schema.prisma` عبر `directUrl` |
+| `P1001` عابر على منفذ `5432` | Supavisor يغلق اتصالات خاملة | أعد الأمر مرة واحدة؛ إن تكرر جرّب رابط **Direct connection** `db.PROJECT_REF.supabase.co:5432` في `DIRECT_URL` |
 | التقارير تعرض «تكاليف القطع غير متاحة» | العمود `OrderItem.unitCost` ناقص في القاعدة | `npx prisma db push` على قاعدة الإنتاج |
 | `P2024` (انتهت مهلة الاتصال) | `connection_limit` منخفض أو مفقود | تأكد من `?pgbouncer=true&connection_limit=5` |
 | `P2010` | RLS ما زالت مفعّلة | ارجع لخطوة 2.4 |
@@ -147,6 +153,7 @@ Vercel ← **Settings ← Domains** ← أضف نطاقك ووثّق DNS وحد�
 - **لا تُرفع أي أسرار** (`.env` مستثنى بالمستودع) — كلها تُدخل في Vercel.
 - **البناء يجب ألّا يحتاج القاعدة إطلاقًا** — أي ملف static يقرأ Prisma ويسقط البناء كله عند أي انقطاع. راجع فقرة 9.
 - `DATABASE_URL` على Vercel **يجب** أن يكون عبر Transaction pooler — ولا تنسَ `pgbouncer=true` و `connection_limit=5` (وليس `1`؛ انظر سبب `P2024` أعلاه).
+- `DIRECT_URL` يجب أن يكون عبر Session pooler (أو Direct connection) — لا تضع عليه `pgbouncer=true` أبدًا.
 - بعد أول نشر، غيّر عناصر الإعدادات الافتراضية من `/admin/settings`.
 - إذا واجهتك `P1001`/`too many connections`: تأكد أنك على منفذ `6543` وأن الـ `connection_limit` مناسب (لا ترفعه فوق حد خطة Free المجاني بعنف؛ `5` تكفينا).
 - إن ظهرت `P2010` وقت النشر تعني أن RLS ما زالت مفعّلة — ارجع للخطوة 2.4 (تعلوية الجداول).
