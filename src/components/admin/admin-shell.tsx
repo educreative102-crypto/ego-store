@@ -50,11 +50,28 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex-1">
-        <div className="no-print sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 md:hidden">
-          <span className="font-black">لوحة التحكم</span>
-          <button onClick={() => logoutAction()} className="text-sm font-bold text-zinc-500">
-            خروج
-          </button>
+        <div className="no-print sticky top-0 z-30 border-b border-zinc-200 bg-white md:hidden">
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="font-black">لوحة التحكم</span>
+            <button onClick={() => logoutAction()} className="text-sm font-bold text-zinc-500">
+              خروج
+            </button>
+          </div>
+          <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
+            {MENU.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                  isActive(item.href)
+                    ? "bg-zinc-900 text-white"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
         </div>
         <main className="p-4 md:p-8">{children}</main>
       </div>

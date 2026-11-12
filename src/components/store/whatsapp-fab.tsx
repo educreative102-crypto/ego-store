@@ -5,7 +5,8 @@ export async function WhatsAppFab() {
   const settings = await getSettings();
   const link = buildWhatsAppLink(
     settings.whatsappNumber,
-    `مرحبًا، من ${settings.shopName}\nعندي استفسار عن أحد القطع أو طلب خاص.`
+    `مرحبًا، من ${settings.shopName}\nعندي استفسار عن أحد القطع أو طلب خاص.`,
+    settings.countryCode
   );
   if (!link) return null;
 

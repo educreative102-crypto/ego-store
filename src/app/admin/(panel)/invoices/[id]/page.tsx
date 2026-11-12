@@ -25,10 +25,13 @@ export default async function InvoiceDetailPage({
   if (!invoice) notFound();
 
   const { order } = invoice;
+  const itemsTotal = order.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
+  const deliverySnapshot = +(invoice.amount - itemsTotal).toFixed(2);
   const whatsappUrl = order.customerPhone
     ? buildWhatsAppLink(
         order.customerPhone,
-        buildInvoiceMessage(settings, invoice.invoiceNo, order.orderNo, invoice.amount)
+        buildInvoiceMessage(settings, invoice.invoiceNo, order.orderNo, invoice.amount),
+        settings.countryCode
       )
     : null;
 
@@ -105,8 +108,8 @@ export default async function InvoiceDetailPage({
         <div className="mt-4 flex items-center justify-between border-t-2 border-zinc-900 bg-zinc-50 px-8 py-5">
           <div>
             <p className="font-black">الإجمالي</p>
-            {settings.deliveryFee > 0 ? (
-              <p className="text-xs text-zinc-500">شامل رسوم التوصيل {money(settings.deliveryFee, settings.currency, settings.currencyPosition)}</p>
+            {deliverySnapshot > 0 ? (
+              <p className="text-xs text-zinc-500">شامل رسوم التوصيل {money(deliverySnapshot, settings.currency, settings.currencyPosition)}</p>
             ) : null}
           </div>
           <p className="text-2xl font-black">

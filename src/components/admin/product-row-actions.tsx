@@ -40,19 +40,23 @@ export function ProductRowActions({
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <a href={href} className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-bold text-zinc-700 hover:bg-zinc-200">
-        تعديل
-      </a>
-      <Button variant="ghost" size="sm" onClick={toggle} disabled={busy}>
-        {active ? "تعطيل" : "تفعيل"}
-      </Button>
-      {!hasOrders ? (
-        <Button variant="ghost" size="sm" onClick={remove} disabled={busy} className="text-rose-600">
-          حذف
+    <div className="flex flex-col items-start gap-1">
+      <div className="flex items-center gap-1.5">
+        <a href={href} className="rounded-lg bg-zinc-100 px-2.5 py-1 text-xs font-bold text-zinc-700 hover:bg-zinc-200">
+          تعديل
+        </a>
+        <Button variant="ghost" size="sm" onClick={toggle} disabled={busy}>
+          {active ? "تعطيل" : "تفعيل"}
         </Button>
+        {!hasOrders ? (
+          <Button variant="ghost" size="sm" onClick={remove} disabled={busy} className="text-rose-600">
+            حذف
+          </Button>
+        ) : null}
+      </div>
+      {message ? (
+        <span className="text-xs font-semibold text-zinc-600">{message}</span>
       ) : null}
-      {message ? <span className="sr-only">{message}</span> : null}
     </div>
   );
 }

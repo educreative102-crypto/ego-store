@@ -3,7 +3,17 @@ import { prisma } from "../prisma";
 import { getSettingsMap, setSetting } from "../settings";
 
 const DB_CREDENTIALS_KEY = "googleServiceAccountJson";
+const ENV_CREDENTIAL_KEYS = ["GOOGLE_SA_JSON", "GOOGLE_SERVICE_ACCOUNT_JSON"];
+const ENV_SHEET_ID_KEYS = ["GOOGLE_SHEET_ID"];
 let warnedAboutDbFallback = false;
+
+function firstEnv(keys: string[]): string {
+  for (const key of keys) {
+    const value = (process.env[key] ?? "").trim();
+    if (value) return value;
+  }
+  return "";
+}
 
 export function sheetIdFromInput(input: string): string | null {
   const trimmed = input.trim();
@@ -14,7 +24,7 @@ export function sheetIdFromInput(input: string): string | null {
 }
 
 async function serviceAccountJson(): Promise<string> {
-  const fromEnv = (process.env.GOOGLE_SA_JSON ?? "").trim();
+  const fromEnv = firstEnv(ENV_CREDENTIAL_KEYS);
   if (fromEnv) return fromEnv;
 
   const row = await prisma.setting.findUnique({ where: { key: DB_CREDENTIALS_KEY } });
@@ -23,7 +33,7 @@ async function serviceAccountJson(): Promise<string> {
     if (!warnedAboutDbFallback) {
       warnedAboutDbFallback = true;
       console.warn(
-        `[sheets] GOOGLE_SA_JSON غير معرّف — يُستخدم المفتاح المخزّن في جدول Setting. انقله إلى متغير البيئة ثم احذف الصف ${DB_CREDENTIALS_KEY}.`
+        `[sheets] ${ENV_CREDENTIAL_KEYS[0]} غير معرّف — يُستخدم المفتاح المخزّن في جدول Setting. انقله إلى متغير البيئة ثم احذف الصف ${DB_CREDENTIALS_KEY}.`
       );
     }
     return fromDb;
@@ -31,10 +41,16 @@ async function serviceAccountJson(): Promise<string> {
   return "";
 }
 
+async function sheetId(): Promise<string> {
+  const map = await getSettingsMap();
+  const fromSettings = (map.googleSheetId ?? "").trim();
+  if (fromSettings) return fromSettings;
+  return firstEnv(ENV_SHEET_ID_KEYS);
+}
+
 export async function sheetsConfigured(): Promise<boolean> {
   if (!(await serviceAccountJson())) return false;
-  const map = await getSettingsMap();
-  return Boolean((map.googleSheetId ?? "").trim());
+  return Boolean(await sheetId());
 }
 
 interface SheetsApi {
@@ -45,8 +61,7 @@ interface SheetsApi {
 export async function getSheetsApi(): Promise<SheetsApi | null> {
   const json = await serviceAccountJson();
   if (!json) return null;
-  const map = await getSettingsMap();
-  const spreadsheetId = sheetIdFromInput(map.googleSheetId ?? "");
+  const spreadsheetId = sheetIdFromInput(await sheetId());
   if (!spreadsheetId) return null;
   try {
     const auth = new google.auth.GoogleAuth({

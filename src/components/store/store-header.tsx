@@ -14,7 +14,11 @@ const NAV = [
 
 export async function StoreHeader() {
   const settings = await getSettings();
-  const customPrintLink = buildWhatsAppLink(settings.whatsappNumber, buildCustomPrintMessage(settings));
+  const customPrintLink = buildWhatsAppLink(
+    settings.whatsappNumber,
+    buildCustomPrintMessage(settings),
+    settings.countryCode
+  );
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md no-print shadow-[0_1px_0_rgba(255,255,255,0.02)]">

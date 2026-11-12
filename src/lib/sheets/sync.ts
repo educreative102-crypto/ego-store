@@ -46,7 +46,7 @@ async function markPending(): Promise<void> {
   await setSetting(PENDING_AT_KEY, new Date().toISOString());
 }
 
-async function acquireLock(): Promise<boolean> {
+async function acquireLock(): Promise<string | null> {
   const nowIso = new Date().toISOString();
   const staleIso = new Date(Date.now() - LOCK_TTL_MS).toISOString();
   try {
@@ -61,12 +61,12 @@ async function acquireLock(): Promise<boolean> {
     },
     data: { value: nowIso },
   });
-  return taken.count === 1;
+  return taken.count === 1 ? nowIso : null;
 }
 
-async function releaseLock(): Promise<void> {
+async function releaseLock(token: string): Promise<void> {
   await prisma.setting
-    .updateMany({ where: { key: LOCK_KEY }, data: { value: "" } })
+    .updateMany({ where: { key: LOCK_KEY, value: token }, data: { value: "" } })
     .catch(() => undefined);
 }
 
@@ -87,7 +87,8 @@ export async function drainSheetsSync(options: { force?: boolean } = {}): Promis
     return { ok: false, message: "المزامنة غير مفعلة — اربط الجدول من الإعدادات" };
   }
 
-  if (!(await acquireLock())) {
+  const lockToken = await acquireLock();
+  if (!lockToken) {
     return { ok: false, message: "مزامنة أخرى قيد التنفيذ — تم دمج الطلب" };
   }
 
@@ -104,7 +105,7 @@ export async function drainSheetsSync(options: { force?: boolean } = {}): Promis
     }
     return await syncSheets();
   } finally {
-    await releaseLock();
+    await releaseLock(lockToken);
   }
 }
 

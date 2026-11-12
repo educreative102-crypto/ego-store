@@ -4,9 +4,13 @@ import { buildWhatsAppLink, buildCustomPrintMessage } from "@/lib/whatsapp";
 
 export async function StoreFooter() {
   const settings = await getSettings();
-  const customPrintLink = buildWhatsAppLink(settings.whatsappNumber, buildCustomPrintMessage(settings));
+  const customPrintLink = buildWhatsAppLink(
+    settings.whatsappNumber,
+    buildCustomPrintMessage(settings),
+    settings.countryCode
+  );
   const whatsappLink = settings.whatsappNumber
-    ? buildWhatsAppLink(settings.whatsappNumber, `مرحبًا، من ${settings.shopName}`)
+    ? buildWhatsAppLink(settings.whatsappNumber, `مرحبًا، من ${settings.shopName}`, settings.countryCode)
     : null;
 
   return (

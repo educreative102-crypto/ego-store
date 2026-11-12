@@ -13,6 +13,34 @@ import { Badge } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
+const CURRENCY_ISO: Record<string, string> = {
+  $: "USD",
+  "US$": "USD",
+  USD: "USD",
+  "€": "EUR",
+  EUR: "EUR",
+  "£": "GBP",
+  GBP: "GBP",
+  "₺": "TRY",
+  TRY: "TRY",
+  "﷼": "SAR",
+  SAR: "SAR",
+  "د.إ": "AED",
+  AED: "AED",
+  "ل.س": "SYP",
+  SYP: "SYP",
+};
+
+function currencyIso(currency: string): string {
+  const key = currency.trim();
+  if (CURRENCY_ISO[key]) return CURRENCY_ISO[key];
+  return /^[A-Za-z]{3}$/.test(key) ? key.toUpperCase() : "USD";
+}
+
+function jsonLd(data: unknown): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -54,14 +82,18 @@ export default async function ProductPage({
   if (!product) notFound();
 
   const images = parseImageList(product.images);
-  const customPrintLink = buildWhatsAppLink(settings.whatsappNumber, buildCustomPrintMessage(settings));
+  const customPrintLink = buildWhatsAppLink(
+    settings.whatsappNumber,
+    buildCustomPrintMessage(settings),
+    settings.countryCode
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
+          __html: jsonLd({
             "@context": "https://schema.org",
             "@type": "Product",
             name: product.name,
@@ -71,7 +103,7 @@ export default async function ProductPage({
             offers: {
               "@type": "Offer",
               price: product.basePrice,
-              priceCurrency: settings.currency,
+              priceCurrency: currencyIso(settings.currency),
               availability: product.allSoldOut
                 ? "https://schema.org/SoldOut"
                 : "https://schema.org/InStock",

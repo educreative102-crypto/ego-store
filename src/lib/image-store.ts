@@ -7,6 +7,9 @@ export async function uploadImageFile(file: File): Promise<{ url?: string; error
   if (!file || file.size === 0) {
     return { error: "الصورة فارغة" };
   }
+  if (!file.type || !file.type.startsWith("image/")) {
+    return { error: "الملف ليس صورة صالحة" };
+  }
   const MAX_SIZE = 4 * 1024 * 1024;
   if (file.size > MAX_SIZE) {
     return { error: "الصورة أكبر من 4MB" };

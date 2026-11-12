@@ -1,12 +1,25 @@
 import type { AppSettings } from "./settings";
 import { money } from "./format";
 
-export function sanitizeNumber(n: string): string {
-  return n.replace(/[^\d]/g, "");
+export const DEFAULT_COUNTRY_CODE = "963";
+
+export function normalizePhone(n: string, countryCode = DEFAULT_COUNTRY_CODE): string {
+  let digits = n.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  const cc = countryCode.replace(/[^\d]/g, "") || DEFAULT_COUNTRY_CODE;
+  if (digits.startsWith(cc)) return digits;
+  if (digits.startsWith("0")) return cc + digits.slice(1);
+  if (digits.length <= 10) return cc + digits;
+  return digits;
 }
 
-export function buildWhatsAppLink(number: string, text: string): string | null {
-  const clean = sanitizeNumber(number);
+export function buildWhatsAppLink(
+  number: string,
+  text: string,
+  countryCode = DEFAULT_COUNTRY_CODE
+): string | null {
+  const clean = normalizePhone(number, countryCode);
   if (!clean) return null;
   return `https://wa.me/${clean}?text=${encodeURIComponent(text)}`;
 }

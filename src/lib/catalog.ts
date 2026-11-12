@@ -41,7 +41,12 @@ export async function rawFetchCatalog(
       ...(category ? { category } : {}),
       ...(policy ? { stockPolicy: policy } : {}),
       ...(search
-        ? { OR: [{ name: { contains: search } }, { sku: { contains: search } }] }
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { sku: { contains: search, mode: "insensitive" } },
+            ],
+          }
         : {}),
     },
     include: { variants: true },

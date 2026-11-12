@@ -22,9 +22,13 @@ const FEATURES = [
 
 export default async function HomePage() {
   const settings = await getSettings();
-  const customPrintLink = buildWhatsAppLink(settings.whatsappNumber, buildCustomPrintMessage(settings));
+  const customPrintLink = buildWhatsAppLink(
+    settings.whatsappNumber,
+    buildCustomPrintMessage(settings),
+    settings.countryCode
+  );
   const chatLink = settings.whatsappNumber
-    ? buildWhatsAppLink(settings.whatsappNumber, `مرحبًا، من ${settings.shopName}`)
+    ? buildWhatsAppLink(settings.whatsappNumber, `مرحبًا، من ${settings.shopName}`, settings.countryCode)
     : null;
   const [featured, hoodies, tshirts] = await Promise.all([
     fetchCatalog({ onlyActive: true }),

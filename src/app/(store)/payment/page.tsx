@@ -8,7 +8,7 @@ export default async function PaymentPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
       <h1 className="text-3xl font-black text-zinc-900">طرق الدفع</h1>
-      <p className="mt-1 text-sm text-zinc-500">اختر الطريقة الأنسب لك واسحب ببساطة</p>
+      <p className="mt-1 text-sm text-zinc-500">اختر الطريقة الأنسب لك وأرسل لنا ببساطة</p>
 
       <div className="mt-6 space-y-4">
         <div className="rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm">

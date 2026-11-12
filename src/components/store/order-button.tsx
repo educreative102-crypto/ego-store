@@ -48,6 +48,12 @@ export function OrderButton({
 
   const finalSize = (hasVariants ? size : manualSize).trim();
   const finalColor = (hasVariants ? color : manualColor).trim();
+  const isMadeToOrder = stockPolicy === "MADE_TO_ORDER";
+  const selectedVariant = hasVariants
+    ? variants.find((v) => v.size === finalSize && v.color === finalColor)
+    : undefined;
+  const maxQuantity =
+    !isMadeToOrder && selectedVariant ? Math.max(1, selectedVariant.remaining) : 99;
 
   const lineTotal = basePrice * quantity;
   const deliveryFee = settings.deliveryFee > 0 ? settings.deliveryFee : 0;
@@ -66,6 +72,14 @@ export function OrderButton({
       }
       if (!finalColor) {
         fail(hasVariants ? "اختر اللون أولًا" : "أدخل اللون أولًا");
+        return false;
+      }
+      if (!isMadeToOrder && selectedVariant && quantity > selectedVariant.remaining) {
+        fail(
+          selectedVariant.remaining > 0
+            ? `المتبقي من هذا المقاس واللون ${selectedVariant.remaining} فقط`
+            : "نفدت الكمية من هذا المقاس واللون"
+        );
         return false;
       }
       return true;
@@ -206,7 +220,11 @@ export function OrderButton({
                         key={s}
                         type="button"
                         disabled={allColorsForSizeSoldOut}
-                        onClick={() => setSize(s)}
+                        onClick={() => {
+                          setSize(s);
+                          setColor("");
+                          setQuantity(1);
+                        }}
                         className={`rounded-full border px-4 py-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                           size === s
                             ? "border-primary bg-primary text-white"
@@ -236,7 +254,10 @@ export function OrderButton({
                           key={v.id}
                           type="button"
                           disabled={v.soldOut}
-                          onClick={() => setColor(v.color)}
+                          onClick={() => {
+                            setColor(v.color);
+                            setQuantity(1);
+                          }}
                           title={v.soldOut ? "نفدت الكمية" : undefined}
                           className={`rounded-full border px-4 py-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                             color === v.color
@@ -245,7 +266,9 @@ export function OrderButton({
                           }`}
                         >
                           {v.color}
-                          {v.soldOut ? (
+                          {isMadeToOrder ? (
+                            <span className="mr-1 text-[11px] font-semibold text-emerald-600">متاح</span>
+                          ) : v.soldOut ? (
                             <span className="mr-1 text-[11px] font-black text-rose-500">نفد</span>
                           ) : (
                             <span className="mr-1 text-[11px] font-semibold text-zinc-400">
@@ -277,14 +300,17 @@ export function OrderButton({
               <input
                 type="number"
                 min={1}
-                max={99}
+                max={maxQuantity}
                 value={quantity}
                 onChange={(e) => {
                   const parsed = parseInt(e.target.value, 10);
-                  setQuantity(Number.isNaN(parsed) ? 1 : Math.max(1, Math.min(99, parsed)));
+                  setQuantity(Number.isNaN(parsed) ? 1 : Math.max(1, Math.min(maxQuantity, parsed)));
                 }}
                 className={inputClass}
               />
+              {!isMadeToOrder && selectedVariant ? (
+                <p className="mt-1 text-xs text-zinc-400">المتوفر حاليًا: {selectedVariant.remaining}</p>
+              ) : null}
             </div>
           </div>
 

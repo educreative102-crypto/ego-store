@@ -7,9 +7,9 @@ import { requireAdmin } from "./auth";
 import { bumpCounter, setSettingsMany, setAdminPassword } from "./settings";
 import { nextSku } from "./order-keys";
 import { slugify } from "./slug";
-import { forceSyncSheets } from "./sheets/sync";
+import { forceSyncSheets, triggerSheetsSync } from "./sheets/sync";
 import { CATALOG_TAG } from "./catalog";
-import { normalizeVariants } from "./product-input";
+import { normalizeVariants, safeInt, safeMoney } from "./product-input";
 import type { SyncResult } from "./sheets/sync";
 
 export interface VariantInput {
@@ -88,6 +88,7 @@ export async function saveProduct(input: ProductInput): Promise<{ ok: boolean; m
       }
     });
     revalidateTag(CATALOG_TAG, { expire: 0 });
+    await triggerSheetsSync();
     return { ok: true, message: "تم حفظ المنتج", id: input.id };
   }
 
@@ -112,6 +113,7 @@ export async function saveProduct(input: ProductInput): Promise<{ ok: boolean; m
     },
   });
   revalidateTag(CATALOG_TAG, { expire: 0 });
+  await triggerSheetsSync();
   return { ok: true, message: "تم إنشاء المنتج برمز " + sku, id: product.id };
 }
 
@@ -121,6 +123,7 @@ export async function toggleProductActive(id: string): Promise<{ ok: boolean; me
   if (!product) return { ok: false, message: "المنتج غير موجود" };
   await prisma.product.update({ where: { id }, data: { active: !product.active } });
   revalidateTag(CATALOG_TAG, { expire: 0 });
+  await triggerSheetsSync();
   return { ok: true, message: product.active ? "تم تعطيل المنتج (اختفى من الموقع)" : "تم تفعيل المنتج" };
 }
 
@@ -132,12 +135,65 @@ export async function deleteProduct(id: string): Promise<{ ok: boolean; message:
   }
   await prisma.product.delete({ where: { id } });
   revalidateTag(CATALOG_TAG, { expire: 0 });
+  await triggerSheetsSync();
   return { ok: true, message: "تم حذف المنتج نهائيًا" };
 }
 
+const SETTINGS_KEYS = new Set([
+  "shopName",
+  "shopLogo",
+  "whatsappNumber",
+  "shamCashNumber",
+  "countryCode",
+  "currency",
+  "currencyPosition",
+  "defaultLeadTime",
+  "deliveryFee",
+  "lowStockThreshold",
+  "googleSheetId",
+]);
+
 export async function saveSettings(entries: Record<string, string>): Promise<{ ok: boolean; message: string }> {
   await requireAdmin();
-  await setSettingsMany(entries);
+
+  const clean: Record<string, string> = {};
+  for (const [key, value] of Object.entries(entries)) {
+    if (!SETTINGS_KEYS.has(key)) continue;
+    clean[key] = typeof value === "string" ? value.trim().slice(0, 500) : String(value);
+  }
+
+  if (clean.shopName !== undefined && !clean.shopName) {
+    return { ok: false, message: "اسم المتجر مطلوب" };
+  }
+  if (clean.currency !== undefined && !clean.currency) {
+    return { ok: false, message: "رمز العملة مطلوب" };
+  }
+  if (clean.currencyPosition !== undefined) {
+    clean.currencyPosition = clean.currencyPosition === "before" ? "before" : "after";
+  }
+  if (clean.countryCode !== undefined) {
+    const digits = clean.countryCode.replace(/[^\d]/g, "");
+    if (!digits || digits.length > 4) {
+      return { ok: false, message: "رمز الدولة يجب أن يكون من 1 إلى 4 أرقام" };
+    }
+    clean.countryCode = digits;
+  }
+  if (clean.deliveryFee !== undefined) {
+    const fee = safeMoney(clean.deliveryFee, NaN);
+    if (!Number.isFinite(fee)) {
+      return { ok: false, message: "رسوم التوصيل يجب أن تكون رقمًا غير سالب" };
+    }
+    clean.deliveryFee = String(fee);
+  }
+  if (clean.lowStockThreshold !== undefined) {
+    const threshold = safeInt(clean.lowStockThreshold, NaN, 0);
+    if (!Number.isFinite(threshold)) {
+      return { ok: false, message: "حد تنبيه المخزون يجب أن يكون عددًا صحيحًا غير سالب" };
+    }
+    clean.lowStockThreshold = String(threshold);
+  }
+
+  await setSettingsMany(clean);
   return { ok: true, message: "تم حفظ الإعدادات" };
 }
 

@@ -4,9 +4,8 @@ import { OrderSource, OrderStatus, PaymentMethod, PaymentStatus, Prisma, StockPo
 import { revalidateTag } from "next/cache";
 import { prisma } from "./prisma";
 import { requireAdmin } from "./auth";
-import { createOrderRecord, type BuyLine } from "./orders/create";
+import { createOrderRecord, buildOrderItems, type BuyLine } from "./orders/create";
 import { getSettings } from "./settings";
-import { bumpCounter } from "./settings";
 import { nextInvoiceNo } from "./order-keys";
 import { triggerSheetsSync } from "./sheets/sync";
 import { CATALOG_TAG } from "./catalog";
@@ -46,10 +45,8 @@ export async function confirmOrder(orderId: string): Promise<{ ok: boolean; mess
     return { ok: false, message: "لا يمكن تأكيد طلب ليس بانتظار التأكيد" };
   }
 
-  const invoiceNo = nextInvoiceNo(await bumpCounter("INV_COUNTER"));
-
   try {
-    await confirmOrderAtomic(orderId, invoiceNo);
+    await confirmOrderAtomic(orderId);
   } catch (error) {
     if (error instanceof ConfirmError) return { ok: false, message: error.message };
     return { ok: false, message: "فشل إصدار الفاتورة — حاول مجددًا" };
@@ -62,7 +59,33 @@ export async function confirmOrder(orderId: string): Promise<{ ok: boolean; mess
 
 class ConfirmError extends Error {}
 
-async function confirmOrderAtomic(orderId: string, invoiceNo: string): Promise<void> {
+// حجز رقم الفاتورة داخل معاملة التأكيد نفسها: العدّاد الخارجي كان يُستهلك قبل
+// المعاملة، فأي فشل (نفاد مخزون/تضارب) يترك فجوة دائمة في تسلسل الفواتير.
+async function bumpCounterTx(tx: Prisma.TransactionClient, name: string): Promise<number> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const row = await tx.setting.findUnique({ where: { key: name } });
+    const current = parseInt(row?.value ?? "0", 10) || 0;
+    const next = current + 1;
+    if (row) {
+      const updated = await tx.setting.updateMany({
+        where: { key: name, value: String(current) },
+        data: { value: String(next) },
+      });
+      if (updated.count === 1) return next;
+      continue;
+    }
+    try {
+      await tx.setting.create({ data: { key: name, value: String(next) } });
+      return next;
+    } catch (error) {
+      if ((error as { code?: string })?.code === "P2002") continue;
+      throw error;
+    }
+  }
+  throw new ConfirmError("تعذر حجز رقم الفاتورة — حاول مجددًا");
+}
+
+async function confirmOrderAtomic(orderId: string): Promise<void> {
   let attempt = 0;
   for (;;) {
     try {
@@ -122,6 +145,7 @@ async function confirmOrderAtomic(orderId: string, invoiceNo: string): Promise<v
             where: { id: orderId },
             data: { status: OrderStatus.CONFIRMED, confirmedAt: new Date() },
           });
+          const invoiceNo = nextInvoiceNo(await bumpCounterTx(tx, "INV_COUNTER"));
           await tx.invoice.create({
             data: { invoiceNo, orderId, amount: order.totalAmount },
           });
@@ -240,7 +264,7 @@ export async function createSiteOrder(input: SiteOrderInput): Promise<{
   whatsappUrl?: string;
 }> {
   if (!input.customerName.trim() || input.customerName.trim().length > 60) {
-    return { ok: false, message: "أدخل اسم الزبون بحرف كحد أقصى 60" };
+    return { ok: false, message: "أدخل اسم الزبون بحد أقصى 60 حرفًا" };
   }
   const phone = input.customerPhone.trim().replace(/\s+/g, "");
   if (!/^\+?[0-9]{8,15}$/.test(phone)) {
@@ -268,6 +292,10 @@ export async function createSiteOrder(input: SiteOrderInput): Promise<{
     if (line.printDetails && line.printDetails.length > 300) {
       return { ok: false, message: "تفاصيل الطباعة طويلة جدًا" };
     }
+  }
+  const built = await buildOrderItems(lines);
+  if (!built.ok) {
+    return { ok: false, message: built.message ?? "أحد الأصناف غير صحيح" };
   }
   if (await rateLimitHit(`order:phone:${phone}`, SITE_ORDER_LIMIT)) {
     return { ok: false, message: "طلبات كثيرة خلال فترة قصيرة — أعد المحاولة بعد قليل" };
@@ -309,7 +337,7 @@ export async function createSiteOrder(input: SiteOrderInput): Promise<{
     { customerName: input.customerName || undefined, notes: input.notes || undefined, hasMadeToOrder }
   );
 
-  const link = buildWhatsAppLink(settings.whatsappNumber, text);
+  const link = buildWhatsAppLink(settings.whatsappNumber, text, settings.countryCode);
   if (!settings.whatsappNumber.trim()) {
     return {
       ok: true,

@@ -2,8 +2,9 @@ import Link from "next/link";
 import { OrderStatus, StockPolicy } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, shopStartOfDay, shopStartOfMonth } from "@/lib/format";
 import { ORDER_STATUS_LABEL, ORDER_STATUS_COLOR } from "@/lib/labels";
+import { remaining } from "@/lib/inventory";
 import { Badge, Card, EmptyState } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +13,11 @@ const SOLD = [OrderStatus.CONFIRMED, OrderStatus.PAID, OrderStatus.SHIPPED, Orde
 
 export default async function DashboardPage() {
   const settings = await getSettings();
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfToday = shopStartOfDay();
+  const startOfMonth = shopStartOfMonth();
 
   const [ordersToday, pendingOrders, monthOrders, recentOrders, products] = await Promise.all([
-    prisma.order.count({ where: { createdAt: { gte: new Date(now.setHours(0, 0, 0, 0)) } } }),
+    prisma.order.count({ where: { createdAt: { gte: startOfToday } } }),
     prisma.order.count({ where: { status: OrderStatus.PENDING } }),
     prisma.order.findMany({
       where: { createdAt: { gte: startOfMonth }, status: { in: [...SOLD] } },
@@ -46,7 +47,7 @@ export default async function DashboardPage() {
   for (const p of products) {
     for (const v of p.variants) {
       const confirmed = aggKey.get(`${p.id}|${v.size}|${v.color}`) ?? 0;
-      const remainingQty = v.stockQty - confirmed;
+      const remainingQty = remaining({ stockQty: v.stockQty, confirmedQty: confirmed });
       if (remainingQty < settings.lowStockThreshold) {
         lowStock.push({ sku: p.sku, name: p.name, size: v.size, color: v.color, remaining: remainingQty });
       }

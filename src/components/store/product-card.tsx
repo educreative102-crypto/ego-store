@@ -29,7 +29,8 @@ export function ProductCard({
     first && settings.whatsappNumber
       ? buildWhatsAppLink(
           settings.whatsappNumber,
-          buildQuickOrderMessage(settings.shopName, product.name, product.sku, first.size, first.color)
+          buildQuickOrderMessage(settings.shopName, product.name, product.sku, first.size, first.color),
+          settings.countryCode
         )
       : null;
 
@@ -107,16 +108,10 @@ export function ProductCard({
           href={quickLink}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold text-white transition-all duration-150 ease-out"
+          className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold text-white transition-all duration-150 ease-out hover:-translate-y-px hover:scale-[1.015]"
           style={{
             backgroundImage: "linear-gradient(to right, #FF4F00, #FF9F1A)",
             boxShadow: "0 10px 60px -20px rgba(255,79,0,0.45)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-1px) scale(1.015)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0) scale(1)";
           }}
         >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

@@ -7,6 +7,7 @@ export interface AppSettings {
   shopLogo: string;
   whatsappNumber: string;
   shamCashNumber: string;
+  countryCode: string;
   currency: string;
   currencyPosition: "before" | "after";
   defaultLeadTime: string;
@@ -22,6 +23,7 @@ const DEFAULTS: Record<string, string> = {
   shopLogo: "",
   whatsappNumber: "",
   shamCashNumber: "",
+  countryCode: "963",
   currency: "$",
   currencyPosition: "after",
   defaultLeadTime: "3-5 أيام",
@@ -66,16 +68,20 @@ export async function getSettingsMap(): Promise<Record<string, string>> {
 
 export const getSettings = cache(async function getSettings(): Promise<AppSettings> {
   const map = await getSettingsMap();
+  const deliveryFee = parseFloat(map.deliveryFee);
+  const lowStockThreshold = parseInt(map.lowStockThreshold, 10);
   return {
     shopName: map.shopName || DEFAULTS.shopName,
     shopLogo: map.shopLogo || "",
     whatsappNumber: map.whatsappNumber || "",
     shamCashNumber: map.shamCashNumber || "",
+    countryCode: (map.countryCode || DEFAULTS.countryCode).replace(/[^\d]/g, "") || DEFAULTS.countryCode,
     currency: map.currency || DEFAULTS.currency,
     currencyPosition: map.currencyPosition === "before" ? "before" : "after",
     defaultLeadTime: map.defaultLeadTime || DEFAULTS.defaultLeadTime,
-    deliveryFee: parseFloat(map.deliveryFee) || 0,
-    lowStockThreshold: parseInt(map.lowStockThreshold, 10) || 5,
+    deliveryFee: Number.isFinite(deliveryFee) && deliveryFee >= 0 ? deliveryFee : 0,
+    lowStockThreshold:
+      Number.isFinite(lowStockThreshold) && lowStockThreshold >= 0 ? lowStockThreshold : 5,
     googleSheetId: map.googleSheetId || "",
     googleSheetStatus: map.googleSheetStatus || DEFAULTS.googleSheetStatus,
     lastSyncAt: map.lastSyncAt || "",
@@ -91,13 +97,17 @@ export async function setSetting(key: string, value: string): Promise<void> {
 }
 
 export async function setSettingsMany(entries: Record<string, string>): Promise<void> {
-  for (const [key, value] of Object.entries(entries)) {
-    await prisma.setting.upsert({
-      where: { key },
-      update: { value },
-      create: { key, value },
-    });
-  }
+  const list = Object.entries(entries);
+  if (list.length === 0) return;
+  await prisma.$transaction(
+    list.map(([key, value]) =>
+      prisma.setting.upsert({
+        where: { key },
+        update: { value },
+        create: { key, value },
+      })
+    )
+  );
 }
 
 export async function bumpCounter(name: string): Promise<number> {

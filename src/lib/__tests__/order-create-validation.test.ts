@@ -8,7 +8,7 @@ const PRODUCT = {
   basePrice: 250,
   costPrice: 120,
   active: true,
-  stockPolicy: StockPolicy.STOCKED,
+  stockPolicy: StockPolicy.STOCKED as StockPolicy,
   variants: [
     { id: "v1", productId: "p1", size: "L", color: "أسود", stockQty: 5 },
     { id: "v2", productId: "p1", size: "XL", color: "أبيض", stockQty: 3 },
@@ -137,5 +137,35 @@ describe("createOrderRecord — التحقق من المقاس واللون", ()
 
     expect(res).toEqual({ ok: false, message: "منتج غير متاح للطلب" });
     PRODUCT.active = true;
+  });
+
+  it("يقبل أي مقاس ولون لمنتج يُصنع عند الطلب بلا متغيرات", async () => {
+    const original = { stockPolicy: PRODUCT.stockPolicy, variants: PRODUCT.variants };
+    PRODUCT.stockPolicy = StockPolicy.MADE_TO_ORDER;
+    PRODUCT.variants = [];
+
+    const { createOrderRecord } = await import("../orders/create");
+    const res = await createOrderRecord(input([line("مقاس خاص", "لون خاص")]));
+
+    expect(res.ok).toBe(true);
+    expect(created[0]).toMatchObject({ size: "مقاس خاص", color: "لون خاص" });
+
+    PRODUCT.stockPolicy = original.stockPolicy;
+    PRODUCT.variants = original.variants;
+  });
+
+  it("يرفض مقاسًا أو لونًا فارغًا حتى مع الصنع عند الطلب", async () => {
+    const original = { stockPolicy: PRODUCT.stockPolicy, variants: PRODUCT.variants };
+    PRODUCT.stockPolicy = StockPolicy.MADE_TO_ORDER;
+    PRODUCT.variants = [];
+
+    const { createOrderRecord } = await import("../orders/create");
+    const res = await createOrderRecord(input([line("  ", "أسود")]));
+
+    expect(res).toEqual({ ok: false, message: "أدخل المقاس واللون" });
+    expect(orderCreate).not.toHaveBeenCalled();
+
+    PRODUCT.stockPolicy = original.stockPolicy;
+    PRODUCT.variants = original.variants;
   });
 });

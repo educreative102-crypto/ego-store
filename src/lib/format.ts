@@ -25,3 +25,19 @@ export function parseJsonArray(value: string): string[] {
     return [];
   }
 }
+
+// سوريا UTC+3 بلا توقيت صيفي. حدود اليوم والشهر تُحسب بهذا الإزاحة لا بتوقيت
+// الخادم (UTC على Vercel) وإلا تأخّرت أرقام «اليوم» و«الشهر» ثلاث ساعات.
+const SHOP_UTC_OFFSET_MS = 3 * 60 * 60_000;
+
+export function shopStartOfDay(now: Date = new Date()): Date {
+  const shifted = new Date(now.getTime() + SHOP_UTC_OFFSET_MS);
+  shifted.setUTCHours(0, 0, 0, 0);
+  return new Date(shifted.getTime() - SHOP_UTC_OFFSET_MS);
+}
+
+export function shopStartOfMonth(now: Date = new Date()): Date {
+  const shifted = new Date(now.getTime() + SHOP_UTC_OFFSET_MS);
+  const start = Date.UTC(shifted.getUTCFullYear(), shifted.getUTCMonth(), 1);
+  return new Date(start - SHOP_UTC_OFFSET_MS);
+}

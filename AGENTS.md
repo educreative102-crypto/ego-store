@@ -6,7 +6,7 @@
 - OS: Windows / PowerShell 5.1 (لا يدعم `&&` — استخدم `;` أو `if ($?) { }`)
 - Node 24 + npm 11
 - Next.js App Router + TypeScript + Tailwind
-- ORM: Prisma — محليًا SQLite؛ عند النشر السحابي ننتقل لـ PostgreSQL (راجع `docs/DEPLOY.md`)
+- ORM: Prisma — المخطط `postgresql` للجميع الآن؛ الإنتاج على Supabase (راجع `docs/DEPLOY.md`). `.env` المحلي يحتاج `DATABASE_URL` صالحًا.
 
 ## الأوامر
 - تثبيت: `npm install`

@@ -11,6 +11,7 @@ interface Props {
     shopLogo: string;
     whatsappNumber: string;
     shamCashNumber: string;
+    countryCode: string;
     currency: string;
     currencyPosition: string;
     defaultLeadTime: string;
@@ -28,6 +29,7 @@ export function SettingsForm({ settings }: Props) {
     shopLogo: settings.shopLogo,
     whatsappNumber: settings.whatsappNumber,
     shamCashNumber: settings.shamCashNumber,
+    countryCode: settings.countryCode,
     currency: settings.currency,
     currencyPosition: settings.currencyPosition,
     defaultLeadTime: settings.defaultLeadTime,
@@ -52,11 +54,12 @@ export function SettingsForm({ settings }: Props) {
       shopLogo: form.shopLogo,
       whatsappNumber: form.whatsappNumber,
       shamCashNumber: form.shamCashNumber,
+      countryCode: form.countryCode,
       currency: form.currency,
       currencyPosition: form.currencyPosition,
       defaultLeadTime: form.defaultLeadTime,
-      deliveryFee: String(parseFloat(form.deliveryFee) || 0),
-      lowStockThreshold: String(parseInt(form.lowStockThreshold, 10) || 5),
+      deliveryFee: form.deliveryFee,
+      lowStockThreshold: form.lowStockThreshold,
       googleSheetId: form.googleSheetId,
     });
     setBusy(false);
@@ -90,11 +93,14 @@ export function SettingsForm({ settings }: Props) {
           <Field label="رابط الشعار">
             <Input value={form.shopLogo} onChange={(e) => set("shopLogo", e.target.value)} placeholder="https://..." />
           </Field>
-          <Field label="رقم الواتساب" hint="بدونه تبقى أزرار الطلب تسجل الطلب وتظهر رسالة بدل فتح المحادثة">
-            <Input value={form.whatsappNumber} onChange={(e) => set("whatsappNumber", e.target.value)} placeholder="0961xxxxxx" dir="ltr" />
+          <Field label="رقم الواتساب" hint="يُقبل الرقم المحلي (09xxxxxxxx) أو الدولي — يُحوَّل تلقائيًا لصيغة wa.me">
+            <Input value={form.whatsappNumber} onChange={(e) => set("whatsappNumber", e.target.value)} placeholder="09xxxxxxxx" dir="ltr" />
           </Field>
           <Field label="رقم شام كاش" hint="يظهر في الفواتير ورسائل الطلب">
             <Input value={form.shamCashNumber} onChange={(e) => set("shamCashNumber", e.target.value)} placeholder="09xxxxxx" dir="ltr" />
+          </Field>
+          <Field label="رمز الدولة" hint="للتحويل من الرقم المحلي إلى الصيغة الدولية — سوريا 963">
+            <Input value={form.countryCode} onChange={(e) => set("countryCode", e.target.value)} placeholder="963" dir="ltr" inputMode="numeric" />
           </Field>
           <Field label="رمز العملة">
             <Input value={form.currency} onChange={(e) => set("currency", e.target.value)} placeholder="$" />
@@ -112,7 +118,7 @@ export function SettingsForm({ settings }: Props) {
             <Input type="number" min={0} value={form.deliveryFee} onChange={(e) => set("deliveryFee", e.target.value)} />
           </Field>
           <Field label="حد تنبيه المخزون المنخفض">
-            <Input type="number" min={1} value={form.lowStockThreshold} onChange={(e) => set("lowStockThreshold", e.target.value)} />
+            <Input type="number" min={0} value={form.lowStockThreshold} onChange={(e) => set("lowStockThreshold", e.target.value)} />
           </Field>
         </div>
       </Card>

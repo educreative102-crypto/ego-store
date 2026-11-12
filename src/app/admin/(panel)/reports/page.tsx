@@ -1,7 +1,7 @@
 import { OrderStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSettings } from "@/lib/settings";
-import { money, formatDateTime } from "@/lib/format";
+import { money, formatDateTime, shopStartOfMonth } from "@/lib/format";
 import { profit, profitMargin } from "@/lib/inventory";
 import { aggregateSoldItems, type ProductAggregate, type SoldLine } from "@/lib/report-aggregates";
 import { sheetsConfigured } from "@/lib/sheets/client";
@@ -105,8 +105,7 @@ async function loadTopProducts(): Promise<{ products: TopProduct[]; unitCostAvai
 
 export default async function ReportsPage() {
   const settings = await getSettings();
-  const now = new Date();
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfMonth = shopStartOfMonth();
 
   const [soldOrders, monthOrders, topSales] = await Promise.all([
     prisma.order.findMany({

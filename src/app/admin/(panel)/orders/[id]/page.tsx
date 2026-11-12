@@ -34,7 +34,8 @@ export default async function OrderDetailPage({
     order.invoice && order.customerPhone
       ? buildWhatsAppLink(
           order.customerPhone,
-          buildInvoiceMessage(settings, order.invoice.invoiceNo, order.orderNo, order.invoice.amount)
+          buildInvoiceMessage(settings, order.invoice.invoiceNo, order.orderNo, order.invoice.amount),
+          settings.countryCode
         )
       : null;
 

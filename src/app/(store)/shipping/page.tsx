@@ -64,7 +64,7 @@ export default async function ShippingPage() {
             هل يمكن تتبع الطلب؟
           </summary>
           <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-            نتابع معك عبر الواتساب في كل مرحلة: تأكيد، تجهيز، ثم إيراد رقم التوصيل ومنها ترسل لك تفاصيله.
+            نتابع معك عبر الواتساب في كل مرحلة: تأكيد، تجهيز، ثم إرسال رقم التوصيل ومنه ترسل لك تفاصيله.
           </p>
         </details>
       </div>

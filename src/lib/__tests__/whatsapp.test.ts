@@ -6,6 +6,7 @@ const settings = {
   shopLogo: "",
   whatsappNumber: "0961 123-456",
   shamCashNumber: "09 873 654",
+  countryCode: "963",
   currency: "$",
   currencyPosition: "after" as const,
   defaultLeadTime: "3-5 أيام",
@@ -26,6 +27,12 @@ describe("whatsapp", () => {
   it("returns null when number empty", () => {
     expect(buildWhatsAppLink("", "نص")).toBeNull();
     expect(buildWhatsAppLink("   ", "نص")).toBeNull();
+  });
+
+  it("converts a local number to international wa.me format", () => {
+    expect(buildWhatsAppLink("0961 123-456", "نص")).toContain("/wa.me/963961123456");
+    expect(buildWhatsAppLink("00963 961 123 456", "نص")).toContain("/wa.me/963961123456");
+    expect(buildWhatsAppLink("961123456", "نص")).toContain("/wa.me/963961123456");
   });
 
   it("builds a complete order message", () => {
