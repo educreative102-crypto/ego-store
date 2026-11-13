@@ -38,9 +38,9 @@ const DEFAULTS: Record<string, string> = {
 };
 
 let seededOk = false;
+let seedPromise: Promise<void> | null = null;
 
-export async function ensureSettingsSeeded(): Promise<void> {
-  if (seededOk) return;
+async function seedSettings(): Promise<void> {
   const existing = await prisma.setting.findMany();
   const keys = new Set(existing.map((s) => s.key));
   const missing = Object.entries(DEFAULTS).filter(([k]) => !keys.has(k));
@@ -56,6 +56,15 @@ export async function ensureSettingsSeeded(): Promise<void> {
     );
   }
   seededOk = true;
+}
+
+export async function ensureSettingsSeeded(): Promise<void> {
+  if (seededOk) return;
+  seedPromise ??= seedSettings().catch((error) => {
+    seedPromise = null;
+    throw error;
+  });
+  await seedPromise;
 }
 
 export async function getSettingsMap(): Promise<Record<string, string>> {

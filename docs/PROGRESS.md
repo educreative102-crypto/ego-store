@@ -81,6 +81,13 @@
 - الشيتس تقرأ `p.category.name`، وحفظ فئة/منتج يعيد `revalidateTag(CATALOG_TAG)` ويطلب مزامنة.
 - `CATEGORY_LABEL` حُذف من `labels.ts` (لا مصدر حقيقة مزدوج)، وأُضيفت `src/lib/categories.ts` و`src/lib/category-slug.ts` مع اختبارات للـ slug والمكرّر.
 - ملاحظة تشغيل: `DATABASE_URL` المحلي كان بلا معاملات استعلام فظهر `prepared statement "s0"`؛ صار `?pgbouncer=true&connection_limit=5&statement_cache_size=0`، والاتصال يعمل.
+
+### تشخيص فشل الاتصال المتقطّع (P1001) — مُصلَح
+- العَرَض: `Can't reach database server at ...:6543` من `getSettings()` رغم أن القاعدة تعمل وبقية الصفحات تُفتح أحيانًا.
+- القياس: TCP على `6543` مفتوح، والمصافحة الكاملة تستغرق **5–7 ثوانٍ**، ومهلة Prisma الافتراضية `connect_timeout` هي **5 ثوانٍ** بالضبط — فكل محاولة تتجاوزها تتحوّل إلى `P1001` مضلّل. المنفذ `5432` (Session pooler) يفتح TCP ثم لا تُكمل المصافحة إطلاقًا على هذا المشروع.
+- الإصلاح: `&connect_timeout=30` في `DATABASE_URL`. تحقّق: 5 اتصالات متتالية ناجحة (3.1–5.8 ثانية). و`DIRECT_URL` صار رابط `6543` نفسه مع `pgbouncer=true&statement_cache_size=0&connect_timeout=30` لأن `5432` غير متاح؛ `prisma db execute` نجح عبره.
+- ما لم يُحسم: `prisma migrate diff` يعلّق بعد ~5 دقائق عبر هذا الرابط (سبق أن علّق `db push` كذلك)، لذا تُنفَّذ تغييرات المخطط عبر `db execute --file` عند الحاجة.
+
 - **غير مشمول (مؤجّل بطلب صريح):** جعل المقاس/اللون اختياريين للمنتجات بلا مقاسات (أكواب/حقائب/كابات).
 
 ### ما زال مفتوحًا

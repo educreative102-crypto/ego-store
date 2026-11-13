@@ -18,9 +18,11 @@
    - اختر **Transaction pooler** (منفذ `6543` عبر Supavisor — إلزامي مع Prisma serverless لتفادي `too_many_connections`).
    - انسخ رابطًا بصيغة (استبدل `[YOUR-PASSWORD]` بكلمة مرور القاعدة):
      ```
-     postgresql://postgres.PROJECT_REF:DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5
+     postgresql://postgres.PROJECT_REF:DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5&statement_cache_size=0&connect_timeout=30
      ```
    - > انتبه للفروق الحاسمة: المستخدم `postgres.PROJECT_REF` (وليس `postgres`)، والعنوان `...pooler.supabase.com:6543`.
+   - **`connect_timeout=30` ليس اختياريًا عمليًا:** مصافحة Supavisor من بعض الشبكات تستغرق 5–7 ثوانٍ، ومهلة Prisma الافتراضية 5 ثوانٍ فقط، فيظهر `Can't reach database server ...:6543` (P1001) رغم أن المنفذ مفتوح والقاعدة تعمل. رفع المهلة يلغي هذا الفشل المتقطّع.
+   - **`statement_cache_size=0`:** يمنع `prepared statement "s0" already exists` عند المرور عبر Transaction pooler (وضع `pgbouncer`).
    - **قيمة `connection_limit`:** نستخدم **`5`** وليس `1`. `1` يسبب `P2024 (Timed out fetching a new connection)` عند أي تزامن (الصفحة تستدعي إعدادات من عدة مكوّنات + 3 كتالوجات متوازية). `5` آمنة لمتجرنا ولا تُرهق خطة Free.
    - أنشئ رابطًا ثانيًا من **Session pooler**: نفس المضيف والمستخدم وكلمة المرور، لكن المنفذ `5432` وبدون `pgbouncer`:
      ```
@@ -48,9 +50,10 @@ Supabase تفعّل **Row Level Security** تلقائيًا على جداول `p
 ## 2) المتغيّرات المحلية (مرة واحدة)
 1. في `.env` المحلي ضع الرابطين من الخطوة 1:
    ```
-   DATABASE_URL="postgresql://postgres.PROJECT_REF:DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5"
-   DIRECT_URL="postgresql://postgres.PROJECT_REF:DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+   DATABASE_URL="postgresql://postgres.PROJECT_REF:DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=5&statement_cache_size=0&connect_timeout=30"
+   DIRECT_URL="postgresql://postgres.PROJECT_REF:DB_PASSWORD@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?connect_timeout=30"
    ```
+   إن كان Session pooler (`5432`) معطّلًا على مشروعك (يفتح TCP ثم لا تُكمل المصافحة)، اجعل `DIRECT_URL` نفس رابط `6543` **مع** `statement_cache_size=0` — تعمل أوامر المخطط عبر Transaction pooler عندها.
    `prisma/schema.prisma` يحتوي أصلًا `url = env("DATABASE_URL")` و`directUrl = env("DIRECT_URL")`، فلا تعدّل المخطط.
 2. ادفع قاعدة البيانات وأنشئ العميل:
    ```powershell
@@ -82,8 +85,8 @@ Supabase تفعّل **Row Level Security** تلقائيًا على جداول `p
 ## 5) المتغيّرات في Vercel
 | المتغير | القيمة | ملاحظة |
 |---|---|---|
-| `DATABASE_URL` | رابط Supabase **Transaction pooler** (منفذ `6543`) مع `?pgbouncer=true&connection_limit=5` | **إلزامي** — منه تُقرأ كل بيانات المتجر |
-| `DIRECT_URL` | رابط Supabase **Session pooler** (منفذ `5432`، بدون `pgbouncer`) | يُستخدم لأوامر المخطط فقط (`db push`/`migrate`/`db execute`). غير مطلوب وقت تشغيل التطبيق، لكن أضفه إن كنت تنفّذ أوامر Prisma من داخل Vercel |
+| `DATABASE_URL` | رابط Supabase **Transaction pooler** (منفذ `6543`) مع `?pgbouncer=true&connection_limit=5&statement_cache_size=0&connect_timeout=30` | **إلزامي** — منه تُقرأ كل بيانات المتجر. بدون `connect_timeout=30` تظهر `P1001` متقطعة عند بطء مصافحة Supavisor |
+| `DIRECT_URL` | رابط Supabase **Session pooler** (منفذ `5432`) أو رابط `6543` نفسه مع `statement_cache_size=0` إن كان Session pooler معطّلًا | يُستخدم لأوامر المخطط فقط (`db push`/`migrate`/`db execute`). غير مطلوب وقت تشغيل التطبيق |
 | `AUTH_SECRET` | سلسلة عشوائية 32+ حرفًا (ثابتة؛ تغييرها يطرد الجلسات) | **إلزامي** — بدونه يرمي `auth.ts` استثناءً ويفشل تسجيل الدخول كليًا. وغيابه يُبقي `/api/sheets/sync` مغلقًا (لا يقبل `Bearer` فارغًا) |
 | `GOOGLE_SA_JSON` | كامل JSON الخاص بـ Service Account في **سطر واحد** | **اختياري** — يُلزم فقط إن أردت مزامنة Google Sheets. لا يُخزَّن في قاعدة البيانات ولا يُرسل للمتصفح. راجع «ترحيل المفتاح» أدناه |
 | `APP_URL` | `https://<your-subdomain>.vercel.app` (أو نطاقك النهائي) | يُستخدم في `sitemap.xml` و`robots.txt` فقط |
@@ -140,10 +143,11 @@ Vercel ← **Settings ← Domains** ← أضف نطاقك ووثّق DNS وحد�
 | `git push` لا يُنتج deployment (ولا شريط إيقاف) | ربط Git أو صلاحية GitHub App | Settings ← Git ← المستودع `main` + **Disable Automatic Deployments** OFF + GitHub ← Settings ← Applications ← Vercel ← المستودع مُدرج |
 | `Authentication failed against database server` | كلمة مرور القاعدة خاطئة أوPlaceholder | أعد خطوة 5 أعلاه |
 | `Schema engine error: prepared statement "s0" already exists` | `db push`/`migrate` عبر Transaction pooler (6543) الذي لا يدعم Prepared Statements | أضف `DIRECT_URL` (Session pooler، منفذ `5432` بدون `pgbouncer`) وأعد تنفيذ الأمر — موجود في `schema.prisma` عبر `directUrl` |
-| `P1001` عابر على منفذ `5432` | Supavisor يغلق اتصالات خاملة | أعد الأمر مرة واحدة؛ إن تكرر جرّب رابط **Direct connection** `db.PROJECT_REF.supabase.co:5432` في `DIRECT_URL` |
+| `P1001` متقطّع على منفذ `6543` رغم أن المنفذ مفتوح والقاعدة تعمل | مصافحة Supavisor تستغرق 5–7 ثوانٍ بينما مهلة Prisma الافتراضية 5 ثوانٍ | أضف `&connect_timeout=30` إلى `DATABASE_URL` — هذا هو الإصلاح الفعلي |
+| `P1001` عابر على منفذ `5432` | Supavisor يغلق اتصالات خاملة أو أن Session pooler معطّل | أعد الأمر مرة واحدة؛ إن تكرر استخدم رابط `6543` مع `statement_cache_size=0` في `DIRECT_URL` |
 | `P1001` مستمر على `5432` بينما التطبيق يعمل على `6543` | Session pooler غير متاح مؤقتًا | استخدم مؤقتًا `DIRECT_URL` = نفس رابط `DATABASE_URL` (6543) **بشرط** إضافة `&statement_cache_size=0`؛ عندها تعمل أوامر المخطط عبر Transaction pooler |
 | التقارير تعرض «تكاليف القطع غير متاحة» | العمود `OrderItem.unitCost` ناقص في القاعدة | `npx prisma db push` على قاعدة الإنتاج |
-| `P2024` (انتهت مهلة الاتصال) | `connection_limit` منخفض أو مفقود | تأكد من `?pgbouncer=true&connection_limit=5` |
+| `P2024` (انتهت مهلة الاتصال) | `connection_limit` منخفض أو مفقود | تأكد من `?pgbouncer=true&connection_limit=5&connect_timeout=30` |
 | `P2010` | RLS ما زالت مفعّلة | ارجع لخطوة 2.4 |
 | إعادة النشر تُبني كوميت قديم | زر Redeploy على deployment قديمة يعيد بناءها | على Hobby التراجع غير متاح — انشر بـ `npx vercel --prod` (يبني آخر كوميت على جهازك) |
 | `403` عند `git push` بعد تبديل المستودع | بيانات اعتماد الحساب القديم مخزّنة | استخدم مفتاح SSH، أو امسح entry القديم من Windows Credential Manager |
@@ -153,7 +157,7 @@ Vercel ← **Settings ← Domains** ← أضف نطاقك ووثّق DNS وحد�
 ## تحذيرات النشر الحاسمة
 - **لا تُرفع أي أسرار** (`.env` مستثنى بالمستودع) — كلها تُدخل في Vercel.
 - **البناء يجب ألّا يحتاج القاعدة إطلاقًا** — أي ملف static يقرأ Prisma ويسقط البناء كله عند أي انقطاع. راجع فقرة 9.
-- `DATABASE_URL` على Vercel **يجب** أن يكون عبر Transaction pooler — ولا تنسَ `pgbouncer=true` و `connection_limit=5` (وليس `1`؛ انظر سبب `P2024` أعلاه).
+- `DATABASE_URL` على Vercel **يجب** أن يكون عبر Transaction pooler — ولا تنسَ `pgbouncer=true` و`connection_limit=5` و`connect_timeout=30` (انظر `P2024`/`P1001` أعلاه).
 - `DIRECT_URL` يجب أن يكون عبر Session pooler (أو Direct connection) — لا تضع عليه `pgbouncer=true` أبدًا.
 - بعد أول نشر، غيّر عناصر الإعدادات الافتراضية من `/admin/settings`.
 - إذا واجهتك `P1001`/`too many connections`: تأكد أنك على منفذ `6543` وأن الـ `connection_limit` مناسب (لا ترفعه فوق حد خطة Free المجاني بعنف؛ `5` تكفينا).
