@@ -5,7 +5,7 @@ import { setSetting } from "../settings";
 import { ensureTabs, getSheetsApi, writeSheet, TAB_NAMES, sheetsConfigured } from "./client";
 import { remaining } from "../inventory";
 import { formatDate } from "../format";
-import { CATEGORY_LABEL, ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL } from "../labels";
+import { ORDER_STATUS_LABEL, PAYMENT_METHOD_LABEL, PAYMENT_STATUS_LABEL } from "../labels";
 
 export interface SyncResult {
   ok: boolean;
@@ -131,7 +131,7 @@ async function syncSheets(): Promise<SyncResult> {
   try {
     const products = await prisma.product.findMany({
       where: { active: true },
-      include: { variants: true },
+      include: { variants: true, category: true },
       orderBy: { sku: "asc" },
     });
 
@@ -158,13 +158,13 @@ async function syncSheets(): Promise<SyncResult> {
     for (const p of products) {
       for (const v of p.variants) {
         if (p.stockPolicy === StockPolicy.MADE_TO_ORDER) {
-          inventoryRows.push([p.sku, p.name, CATEGORY_LABEL[p.category], "صنع عند الطلب", v.size, v.color, "—", "—", "—"]);
+          inventoryRows.push([p.sku, p.name, p.category.name, "صنع عند الطلب", v.size, v.color, "—", "—", "—"]);
         } else {
           const confirmedQty = aggByKey.get(`${p.id}|${v.size}|${v.color}`) ?? 0;
           inventoryRows.push([
             p.sku,
             p.name,
-            CATEGORY_LABEL[p.category],
+            p.category.name,
             "مخزون محدود",
             v.size,
             v.color,

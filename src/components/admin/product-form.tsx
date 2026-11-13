@@ -9,11 +9,12 @@ import { ImageManager } from "./image-manager";
 import { STOCK_POLICY_LABEL } from "@/lib/labels";
 
 interface Props {
+  categories: { id: string; name: string }[];
   product?: {
     id: string;
     name: string;
     description: string;
-    category: string;
+    categoryId: string;
     stockPolicy: string;
     basePrice: number;
     costPrice: number;
@@ -27,11 +28,11 @@ interface Props {
   };
 }
 
-export function ProductForm({ product }: Props) {
+export function ProductForm({ categories, product }: Props) {
   const router = useRouter();
   const [name, setName] = useState(product?.name ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
-  const [category, setCategory] = useState(product?.category ?? "HOODIE");
+  const [categoryId, setCategoryId] = useState(product?.categoryId ?? categories[0]?.id ?? "");
   const [stockPolicy, setStockPolicy] = useState(product?.stockPolicy ?? "STOCKED");
   const [basePrice, setBasePrice] = useState(String(product?.basePrice ?? 0));
   const [costPrice, setCostPrice] = useState(String(product?.costPrice ?? 0));
@@ -59,7 +60,7 @@ export function ProductForm({ product }: Props) {
       id: product?.id,
       name,
       description,
-      category: category as "HOODIE" | "TSHIRT",
+      categoryId,
       stockPolicy: stockPolicy as "STOCKED" | "MADE_TO_ORDER",
       basePrice: Number(basePrice) || 0,
       costPrice: Number(costPrice) || 0,
@@ -90,9 +91,10 @@ export function ProductForm({ product }: Props) {
           <Input value={designName} onChange={(e) => setDesignName(e.target.value)} placeholder="اسم الطبعة إن وجدت" />
         </Field>
         <Field label="الفئة">
-          <Select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="HOODIE">هودي</option>
-            <option value="TSHIRT">تيشيرت</option>
+          <Select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>{category.name}</option>
+            ))}
           </Select>
         </Field>
         <Field label="سياسة الكمية">

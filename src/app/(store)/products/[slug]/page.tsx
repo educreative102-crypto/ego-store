@@ -5,7 +5,7 @@ import { StockPolicy } from "@prisma/client";
 import { fetchProductBySlug, parseImageList } from "@/lib/catalog";
 import { getSettings } from "@/lib/settings";
 import { money } from "@/lib/format";
-import { CATEGORY_LABEL, STOCK_POLICY_LABEL } from "@/lib/labels";
+import { STOCK_POLICY_LABEL } from "@/lib/labels";
 import { buildWhatsAppLink, buildCustomPrintMessage } from "@/lib/whatsapp";
 import { OrderButton } from "@/components/store/order-button";
 import { ProductGallery } from "@/components/store/product-gallery";
@@ -120,6 +120,13 @@ export default async function ProductPage({
           الكتالوج
         </Link>
         <span aria-hidden="true">/</span>
+        <Link
+          href={`/products?category=${encodeURIComponent(product.category.slug)}`}
+          className="rounded-full px-2 py-1 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
+        >
+          {product.category.name}
+        </Link>
+        <span aria-hidden="true">/</span>
         <span className="px-2 py-1 font-bold text-zinc-900">{product.name}</span>
       </nav>
 
@@ -129,7 +136,7 @@ export default async function ProductPage({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge color="gray">{product.sku}</Badge>
-            <Badge color="orange">{CATEGORY_LABEL[product.category]}</Badge>
+            <Badge color="orange">{product.category.name}</Badge>
             <Badge color={product.stockPolicy === StockPolicy.MADE_TO_ORDER ? "orange" : "amber"}>
               {STOCK_POLICY_LABEL[product.stockPolicy]}
             </Badge>

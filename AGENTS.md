@@ -24,6 +24,8 @@
 - `src/lib/settings.ts` — قراءة/تحديث إعدادات المتجر (من DB).
 - `src/lib/whatsapp.ts` — بناء رسائل wa.me (الرمز، القطعة، المقاس، اللون، الكمية، الطباعة، السعر).
 - `src/lib/order-keys.ts` — توليد الأرقام التسلسلية (SKU/ORD/INV).
+- `src/lib/categories.ts` — قراءة فئات المنتجات (جدول `ProductCategory` يديره الأدمن) وعدّ منتجاتها.
+- `src/lib/category-slug.ts` — اشتقاق رابط الفئة من الاسم العربي + حلّ التكرار (دوال نقية).
 - `src/lib/sheets/` — مزامنة Google Sheets (تتوقف بصمت دون ربط).
 - `src/app/admin/**` — لوحة التحكم (محمية؛ أي صفحة جديدة تضاف يجب أن تُضاف داخل هيكل admin).
 - التسجيل: خادمي عبر Server Actions + Cookie موقع بتوقيع HMAC.
@@ -33,3 +35,13 @@
 - الرسائل والأنساق العربية أولوية (الأرانب بالجمع العربي ألا يكون نصًا إنجليزيًا فجًا).
 - لا comment زخرفية في الكود؛ الأسماء تعبّر.
 - أي ميزة جديدة تؤثر على الجرد/المبيعات/الأرباح يجب أن تحدّث تبويبات شيتس الأربعة.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

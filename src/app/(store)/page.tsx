@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { fetchCatalog } from "@/lib/catalog";
+import { fetchCategories } from "@/lib/categories";
+import { availablePiecesLabel } from "@/lib/format";
 import { getSettings } from "@/lib/settings";
 import { buildWhatsAppLink, buildCustomPrintMessage } from "@/lib/whatsapp";
 import { ProductCard } from "@/components/store/product-card";
@@ -30,19 +32,22 @@ export default async function HomePage() {
   const chatLink = settings.whatsappNumber
     ? buildWhatsAppLink(settings.whatsappNumber, `مرحبًا، من ${settings.shopName}`, settings.countryCode)
     : null;
-  const [featured, hoodies, tshirts] = await Promise.all([
+  const [catalog, categories] = await Promise.all([
     fetchCatalog({ onlyActive: true }),
-    fetchCatalog({ category: "HOODIE" }),
-    fetchCatalog({ category: "TSHIRT" }),
+    fetchCategories(),
   ]);
 
-  const displayFeatured = featured
+  const displayFeatured = catalog
     .filter((p) => p.featured)
-    .concat(featured.filter((p) => !p.featured))
+    .concat(catalog.filter((p) => !p.featured))
     .slice(0, 8);
 
-  const hoodiesAvailable = hoodies.filter((p) => !p.allSoldOut).length;
-  const tshirtsAvailable = tshirts.filter((p) => !p.allSoldOut).length;
+  const categorySections = categories
+    .map((category) => ({
+      category,
+      products: catalog.filter((product) => product.categoryId === category.id),
+    }))
+    .filter((section) => section.products.length > 0);
 
   return (
     <div className="mx-auto max-w-6xl px-4">
@@ -54,9 +59,9 @@ export default async function HomePage() {
             {settings.shopName} — أوفرسايز ستريت وير
           </p>
           <h1 className="mx-auto max-w-2xl text-4xl font-black leading-tight md:text-5xl">
-            هوديز وتيشيرتات أوفرسايز
+            قطع أوفرسايز مطبوعة
             <br />
-            مطبوعة، خام، أو{" "}
+            خام، جاهزة، أو{" "}
             <span className="underline decoration-white/50 decoration-4 underline-offset-8">
               فكرتك أنت
             </span>
@@ -142,34 +147,52 @@ export default async function HomePage() {
         )}
       </section>
 
-      <section className="mt-12 grid gap-4 md:grid-cols-2">
-        <Link
-          href="/products?category=HOODIE"
-          className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF4F00] via-[#FF5A14] to-[#0B0B0F] p-8 text-white transition-transform duration-150 ease-out hover:scale-[1.01]"
-        >
-          <div className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-white/10 blur-xl" />
-          <p className="text-2xl font-black">الهوديز</p>
-          <p className="mt-1 text-white/85">
-            {hoodiesAvailable} {hoodiesAvailable === 1 ? "قطعة متوفرة" : "قطعات متوفرة"} الآن
-          </p>
-          <span className="mt-5 inline-flex rounded-full border border-border bg-surface/40 px-5 py-2 text-sm font-black text-white backdrop-blur-md">
-            تصفح الهوديز
-          </span>
-        </Link>
-        <Link
-          href="/products?category=TSHIRT"
-          className="group relative overflow-hidden rounded-3xl border border-border bg-surface p-8 text-white transition-transform duration-150 ease-out hover:scale-[1.01]"
-        >
-          <div className="pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full bg-white/5 blur-xl" />
-          <p className="text-2xl font-black">تيشيرتات أوفرسايز</p>
-          <p className="mt-1 text-foreground-muted">
-            {tshirtsAvailable} {tshirtsAvailable === 1 ? "قطعة متوفرة" : "قطعات متوفرة"} الآن
-          </p>
-          <span className="mt-5 btn-primary">
-            تصفح التيشيرتات
-          </span>
-        </Link>
-      </section>
+      {categorySections.length > 0 ? (
+        <section className="mt-12">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-black text-foreground">تسوق حسب الفئة</h2>
+            <Link href="/products" className="rounded-full px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-primary-soft">
+              كل المنتجات ←
+            </Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {categorySections.map(({ category, products }, index) => {
+              const available = products.filter((product) => !product.allSoldOut).length;
+              const highlighted = index % 3 === 0;
+              return (
+                <Link
+                  key={category.id}
+                  href={`/products?category=${encodeURIComponent(category.slug)}`}
+                  className={
+                    highlighted
+                      ? "group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FF4F00] via-[#FF5A14] to-[#0B0B0F] p-8 text-white transition-transform duration-150 ease-out hover:scale-[1.01]"
+                      : "group relative overflow-hidden rounded-3xl border border-border bg-surface p-8 text-white transition-transform duration-150 ease-out hover:scale-[1.01]"
+                  }
+                >
+                  <div
+                    className={`pointer-events-none absolute -bottom-16 -left-10 h-48 w-48 rounded-full blur-xl ${
+                      highlighted ? "bg-white/10" : "bg-white/5"
+                    }`}
+                  />
+                  <p className="text-2xl font-black">{category.name}</p>
+                  <p className={highlighted ? "mt-1 text-white/85" : "mt-1 text-foreground-muted"}>
+                    {availablePiecesLabel(available)}
+                  </p>
+                  <span
+                    className={
+                      highlighted
+                        ? "mt-5 inline-flex rounded-full border border-border bg-surface/40 px-5 py-2 text-sm font-black text-white backdrop-blur-md"
+                        : "mt-5 btn-primary"
+                    }
+                  >
+                    تصفح {category.name}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-12 rounded-3xl border border-primary-mist bg-primary-soft/60 p-8 text-center md:p-10">
         <h2 className="text-2xl font-black text-white">وما اللي ببالك؟</h2>

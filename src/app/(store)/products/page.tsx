@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Category, StockPolicy } from "@prisma/client";
+import { StockPolicy } from "@prisma/client";
 import { fetchCatalog } from "@/lib/catalog";
+import { fetchCategories } from "@/lib/categories";
 import { getSettings } from "@/lib/settings";
 import { ProductCard } from "@/components/store/product-card";
 
@@ -12,12 +13,7 @@ export default async function ProductsPage({
   searchParams: Promise<{ category?: string; recipe?: string; q?: string; available?: string }>;
 }) {
   const params = await searchParams;
-  const settings = await getSettings();
-
-  const category =
-    params.category && (Object.values(Category) as string[]).includes(params.category)
-      ? (params.category as Category)
-      : undefined;
+  const categorySlug = params.category?.trim().slice(0, 80) || undefined;
   const policy =
     params.recipe && (Object.values(StockPolicy) as string[]).includes(params.recipe)
       ? (params.recipe as StockPolicy)
@@ -25,14 +21,24 @@ export default async function ProductsPage({
   const q = params.q?.trim().slice(0, 100) || undefined;
   const onlyAvailable = params.available === "1";
 
-  const products = await fetchCatalog({
-    category,
-    policy,
-    search: q,
-    includeSoldOut: !onlyAvailable,
-  });
+  const [settings, products, categories] = await Promise.all([
+    getSettings(),
+    fetchCatalog({
+      categorySlug,
+      policy,
+      search: q,
+      includeSoldOut: !onlyAvailable,
+    }),
+    fetchCategories(),
+  ]);
 
-  const isAll = !category && !policy && !onlyAvailable;
+  const isAll = !categorySlug && !policy && !onlyAvailable;
+  const activeCategory = categories.find(
+    (category) => category.slug.toLowerCase() === categorySlug?.toLowerCase()
+  );
+  const visibleCategories = categories.filter(
+    (category) => category.productCount > 0 || category.id === activeCategory?.id
+  );
 
   const filterClass = (active: boolean) =>
     `rounded-full px-4 py-2 text-sm font-bold transition-colors ${
@@ -51,6 +57,9 @@ export default async function ProductsPage({
 
       <div className="mt-6 space-y-3">
         <form method="get" className="flex gap-2">
+          {categorySlug ? <input type="hidden" name="category" value={categorySlug} /> : null}
+          {policy ? <input type="hidden" name="recipe" value={policy} /> : null}
+          {onlyAvailable ? <input type="hidden" name="available" value="1" /> : null}
           <input
             name="q"
             defaultValue={q ?? ""}
@@ -66,20 +75,23 @@ export default async function ProductsPage({
           <Link href="/products" className={filterClass(isAll)}>
             الكل
           </Link>
-          <Link href="/products?category=HOODIE" className={filterClass(category === "HOODIE")}>
-            هوديز
-          </Link>
-          <Link href="/products?category=TSHIRT" className={filterClass(category === "TSHIRT")}>
-            تيشيرتات
-          </Link>
+          {visibleCategories.map((category) => (
+            <Link
+              key={category.id}
+              href={`/products?category=${encodeURIComponent(category.slug)}`}
+              className={filterClass(category.id === activeCategory?.id)}
+            >
+              {category.name}
+            </Link>
+          ))}
           <span className="mx-1 h-5 w-px bg-zinc-200" />
           <Link href="/products?recipe=MADE_TO_ORDER" className={filterClass(policy === "MADE_TO_ORDER")}>
             طباعة عند الطلب
           </Link>
-          <Link href="/products?available=1" className={filterClass(onlyAvailable && !category && !policy)}>
+          <Link href="/products?available=1" className={filterClass(onlyAvailable && !categorySlug && !policy)}>
             المتوفر الآن
           </Link>
-          {onlyAvailable || q ? (
+          {categorySlug || policy || onlyAvailable || q ? (
             <Link
               href="/products"
               className="rounded-full px-3 py-2 text-sm font-bold text-zinc-400 transition-colors hover:text-zinc-600"

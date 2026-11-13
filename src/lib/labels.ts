@@ -1,4 +1,4 @@
-import { OrderSource, OrderStatus, PaymentMethod, PaymentStatus, StockPolicy, Category } from "@prisma/client";
+import { OrderSource, OrderStatus, PaymentMethod, PaymentStatus, StockPolicy } from "@prisma/client";
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   PENDING: "بانتظار التأكيد",
@@ -37,9 +37,4 @@ export const PAYMENT_STATUS_LABEL: Record<PaymentStatus, string> = {
 export const STOCK_POLICY_LABEL: Record<StockPolicy, string> = {
   STOCKED: "مخزون محدود",
   MADE_TO_ORDER: "صنع عند الطلب",
-};
-
-export const CATEGORY_LABEL: Record<Category, string> = {
-  HOODIE: "هودي",
-  TSHIRT: "تيشيرت",
 };

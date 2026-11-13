@@ -1,12 +1,13 @@
 "use server";
 
-import { Category, StockPolicy } from "@prisma/client";
+import { StockPolicy } from "@prisma/client";
 import { revalidateTag } from "next/cache";
 import { prisma } from "./prisma";
 import { requireAdmin } from "./auth";
 import { bumpCounter, setSettingsMany, setAdminPassword } from "./settings";
 import { nextSku } from "./order-keys";
 import { slugify } from "./slug";
+import { categorySlugFrom, uniqueCategorySlug } from "./category-slug";
 import { forceSyncSheets, triggerSheetsSync } from "./sheets/sync";
 import { CATALOG_TAG } from "./catalog";
 import { normalizeVariants, safeInt, safeMoney } from "./product-input";
@@ -22,7 +23,7 @@ export interface ProductInput {
   id?: string;
   name: string;
   description: string;
-  category: Category;
+  categoryId: string;
   stockPolicy: StockPolicy;
   basePrice: number;
   costPrice: number;
@@ -53,12 +54,18 @@ export async function saveProduct(input: ProductInput): Promise<{ ok: boolean; m
     return { ok: false, message: "مدة التجهيز يجب أن تكون يومًا واحدًا على الأقل" };
   }
 
+  const category = await prisma.productCategory.findUnique({
+    where: { id: input.categoryId },
+    select: { id: true },
+  });
+  if (!category) return { ok: false, message: "اختر فئة موجودة" };
+
   const cleanVariants = normalizeVariants(input.variants);
 
   const data = {
     name,
     description: input.description.trim(),
-    category: input.category,
+    categoryId: category.id,
     stockPolicy: input.stockPolicy,
     basePrice: input.basePrice,
     costPrice: input.costPrice,
@@ -137,6 +144,66 @@ export async function deleteProduct(id: string): Promise<{ ok: boolean; message:
   revalidateTag(CATALOG_TAG, { expire: 0 });
   await triggerSheetsSync();
   return { ok: true, message: "تم حذف المنتج نهائيًا" };
+}
+
+export interface CategoryInput {
+  id?: string;
+  name: string;
+  slug?: string;
+  sortOrder: number;
+}
+
+export async function saveCategory(
+  input: CategoryInput
+): Promise<{ ok: boolean; message: string; id?: string }> {
+  await requireAdmin();
+  const name = input.name.trim().slice(0, 60);
+  if (!name) return { ok: false, message: "أدخل اسم الفئة" };
+
+  const existing = await prisma.productCategory.findMany({ select: { id: true, slug: true } });
+  const taken = existing.filter((category) => category.id !== input.id).map((category) => category.slug);
+  const slug = uniqueCategorySlug(categorySlugFrom(name, input.slug), taken);
+  const sortOrder = safeInt(input.sortOrder, 0);
+  const data = { name, slug, sortOrder };
+
+  try {
+    if (input.id) {
+      if (!existing.some((category) => category.id === input.id)) {
+        return { ok: false, message: "الفئة غير موجودة" };
+      }
+      await prisma.productCategory.update({ where: { id: input.id }, data });
+      revalidateTag(CATALOG_TAG, { expire: 0 });
+      await triggerSheetsSync();
+      return { ok: true, message: "تم حفظ الفئة", id: input.id };
+    }
+
+    const created = await prisma.productCategory.create({ data });
+    revalidateTag(CATALOG_TAG, { expire: 0 });
+    return { ok: true, message: "تم إنشاء الفئة", id: created.id };
+  } catch (error) {
+    if ((error as { code?: string })?.code === "P2002") {
+      return { ok: false, message: "اسم الفئة أو رابطها مستخدم بالفعل" };
+    }
+    throw error;
+  }
+}
+
+export async function deleteCategory(id: string): Promise<{ ok: boolean; message: string }> {
+  await requireAdmin();
+  const category = await prisma.productCategory.findUnique({
+    where: { id },
+    include: { _count: { select: { products: true } } },
+  });
+  if (!category) return { ok: false, message: "الفئة غير موجودة" };
+  if (category._count.products > 0) {
+    return {
+      ok: false,
+      message: "لا يمكن حذف فئة تحتوي منتجات — انقل منتجاتها لفئة أخرى أولًا",
+    };
+  }
+  await prisma.productCategory.delete({ where: { id } });
+  revalidateTag(CATALOG_TAG, { expire: 0 });
+  return { ok: true, message: "تم حذف الفئة" };
 }
 
 const SETTINGS_KEYS = new Set([

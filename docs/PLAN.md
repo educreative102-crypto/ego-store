@@ -35,9 +35,11 @@
 10. **الاسترداد يعني مالًا حقيقيًا:** الإلغاء يكتب `REFUNDED` **فقط** إن كان `paymentStatus = PAID` وقت الإلغاء؛ طلب غير مدفوع يُلغى ويبقى على حالته الدفعية. و`confirmedAt` يُمسح عند الإلغاء.
 11. **كل رقم مكتوب يجب أن يكون منتهيًا:** لا يُكتب `basePrice` أو `costPrice` أو `stockQty` أو `leadTimeDays` قبل `Number.isFinite`، ولا قيمة سالبة. التكلفة السالبة تحديدًا تجعل الربح أكبر من الإيراد، ولذلك لا يُستخدم `|| 0` كحارس (السالب يمرّ به)، بل فحص صريح. `safeMoney`/`safeInt` في `src/lib/product-input.ts`.
 12. **المتغيرات تفرد مفروض:** `(productId, size, color)` فريد في المخطط، وحفظ المنتج يحذف ثم ينشئ. أي تكرار في حمولة النموذج كان يُسقط **المعاملة كلها** فتضيع تعديلات المنتج. `normalizeVariants()` يحذف المكرّر على الزوج المقصوص ويأخذ آخر قيمة — لا المجموع، لأن التكرار خلل في النموذج لا توزيع مخزون.
+13. **الفئات بيانات لا كود:** الفئات في جدول `ProductCategory` يديره الأدمن، لا `enum` مثبّت. `categoryId` إلزامي، والحذف مقيّد (`onDelete: Restrict`) فلا تُحذف فئة لها منتجات. رابط الفلترة هو `slug` (يُشتق من الاسم العربي عبر `slugify` عند الإنشاء)، ويُقبل الرابط القديم `?category=HOODIE` بمطابقة غير حساسة لحالة الأحرف. لا يوجد `CATEGORY_LABEL` في الكود؛ اسم الفئة يُقرأ من العلاقة.
 
 ## نموذج البيانات (Prisma)
-- **Product:** sku فريد تلقائي، name، description، slug، category (HOODIE|TSHIRT)،
+- **ProductCategory:** id، name فريد، slug فريد (رابط الفلترة)، sortOrder، createdAt — فئات يديرها الأدمن من `/admin/categories`.
+- **Product:** sku فريد تلقائي، name، description، slug، categoryId (إلزامي → ProductCategory بحذف مقيّد)،
   stockPolicy (STOCKED|MADE_TO_ORDER)، basePrice، costPrice، designName، printDetails،
   leadTimeDays، images[]، active، featured.
 - **Variant:** productId، size، color، stockQty (يُهمل لسياسة "صنع عند الطلب").

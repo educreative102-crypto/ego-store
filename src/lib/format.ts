@@ -26,6 +26,14 @@ export function parseJsonArray(value: string): string[] {
   }
 }
 
+export function availablePiecesLabel(count: number): string {
+  if (count <= 0) return "لا قطع متوفرة";
+  if (count === 1) return "قطعة واحدة متوفرة";
+  if (count === 2) return "قطعتان متوفرتان";
+  if (count <= 10) return `${count} قطع متوفرة`;
+  return `${count} قطعة متوفرة`;
+}
+
 // سوريا UTC+3 بلا توقيت صيفي. حدود اليوم والشهر تُحسب بهذا الإزاحة لا بتوقيت
 // الخادم (UTC على Vercel) وإلا تأخّرت أرقام «اليوم» و«الشهر» ثلاث ساعات.
 const SHOP_UTC_OFFSET_MS = 3 * 60 * 60_000;

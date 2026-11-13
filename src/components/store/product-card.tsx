@@ -1,7 +1,6 @@
 import type { ProductWithBalance } from "@/lib/catalog";
 import type { AppSettings } from "@/lib/settings";
 import { money } from "@/lib/format";
-import { CATEGORY_LABEL } from "@/lib/labels";
 import { buildWhatsAppLink, buildQuickOrderMessage } from "@/lib/whatsapp";
 import { StoreImage } from "@/components/store/store-image";
 import Link from "next/link";
@@ -65,7 +64,7 @@ export function ProductCard({
           {product.sku}
         </span>
         <span className="absolute top-2 left-2 rounded-full border border-border bg-surface/80 px-2.5 py-0.5 text-[11px] font-bold text-foreground-muted backdrop-blur-md">
-          {CATEGORY_LABEL[product.category]}
+          {product.category.name}
         </span>
         {!soldOut && stocked ? (
           <span className="absolute bottom-2 right-2 rounded-full border border-primary-mist bg-primary/90 px-2.5 py-0.5 text-[11px] font-black text-white shadow-[0_8px_40px_-20px_rgba(255,79,0,0.45)]">

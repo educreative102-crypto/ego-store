@@ -71,6 +71,18 @@
 - نُفّذ `db push` بنجاح («database is now in sync») ثم `prisma generate`، ونُفّذ `scripts/disable-rls.sql` بنجاح.
 - حُذف `scripts/switch-db.ps1`: كان يحوّل المخطط إلى SQLite فيتعارض مع `directUrl`، والتطوير صار على PostgreSQL مباشرة. حُدّث `docs/DEPLOY.md` و`.env.example` بالمتغيّرين وشروحهما.
 
+## فئات المنتجات من لوحة التحكم (مكتمل)
+الاختبارات **80/80** ناجحة (14 ملفًا)، `eslint` نظيف، `tsc --noEmit` نظيف، `npm run build` ناجح، وفحص HTTP للصفحات العامة ناجح.
+- استُبدل `enum Category` (هودي/تيشيرت مثبتان في الكود) بجدول `ProductCategory` يديره الأدمن: اسم، slug للرابط، ترتيب، وعلاقة إلزامية بالمنتج (`categoryId`, `onDelete: Restrict`).
+- صفحة جديدة `/admin/categories`: إنشاء/تعديل/حذف مع عدّاد منتجات، ورابط تلقائي من الاسم العربي عبر `slugify`. الحذف ممنوع إذا كانت الفئة تحتوي منتجات — حماية في الواجهة والخادم وقاعدة البيانات.
+- الترحيل تم بثلاث خطوات بلا فقد: `db push` انتقالي (`categoryId` nullable) ← `scripts/migrate-categories.sql` (بذر هودي/تيشيرت وربط المنتجات القديمة) ← `scripts/finalize-categories.sql` (تثبيت `categoryId` وحذف العمود والنوع). `prisma migrate diff` أعاد «No difference detected».
+- المتجر صار مدعومًا بالفئات: أزرار فلترة في `/products`، أقسام ديناميكية في الرئيسية (لا تظهر فئة بلا منتجات)، وشارة الفئة في البطاقة وصفحة المنتج من العلاقة.
+- روابط الفلترة القديمة `?category=HOODIE`/`?category=TSHIRT` تعمل: مطابقة slug غير حسّاسة لحالة الأحرف، وبذور الروابط `hoodie`/`tshirt`.
+- الشيتس تقرأ `p.category.name`، وحفظ فئة/منتج يعيد `revalidateTag(CATALOG_TAG)` ويطلب مزامنة.
+- `CATEGORY_LABEL` حُذف من `labels.ts` (لا مصدر حقيقة مزدوج)، وأُضيفت `src/lib/categories.ts` و`src/lib/category-slug.ts` مع اختبارات للـ slug والمكرّر.
+- ملاحظة تشغيل: `DATABASE_URL` المحلي كان بلا معاملات استعلام فظهر `prepared statement "s0"`؛ صار `?pgbouncer=true&connection_limit=5&statement_cache_size=0`، والاتصال يعمل.
+- **غير مشمول (مؤجّل بطلب صريح):** جعل المقاس/اللون اختياريين للمنتجات بلا مقاسات (أكواب/حقائب/كابات).
+
 ### ما زال مفتوحًا
 - **اختبار المسارات الحيّة:** الاتصال صار متاحًا، لكن لم تُجرَّب بعد دورة كاملة على القاعدة (تأكيد طلب، خصم مخزون، مزامنة شيتس حقيقية) — الاختبارات ما زالت وحدات معزولة.
 - **2.5 و2.6** (نطاق مخصص + الترحيل لحساب GitHub/Vercel جديد) ما زالا مفتوحين كما هما.

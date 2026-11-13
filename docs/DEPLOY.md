@@ -141,6 +141,7 @@ Vercel ← **Settings ← Domains** ← أضف نطاقك ووثّق DNS وحد�
 | `Authentication failed against database server` | كلمة مرور القاعدة خاطئة أوPlaceholder | أعد خطوة 5 أعلاه |
 | `Schema engine error: prepared statement "s0" already exists` | `db push`/`migrate` عبر Transaction pooler (6543) الذي لا يدعم Prepared Statements | أضف `DIRECT_URL` (Session pooler، منفذ `5432` بدون `pgbouncer`) وأعد تنفيذ الأمر — موجود في `schema.prisma` عبر `directUrl` |
 | `P1001` عابر على منفذ `5432` | Supavisor يغلق اتصالات خاملة | أعد الأمر مرة واحدة؛ إن تكرر جرّب رابط **Direct connection** `db.PROJECT_REF.supabase.co:5432` في `DIRECT_URL` |
+| `P1001` مستمر على `5432` بينما التطبيق يعمل على `6543` | Session pooler غير متاح مؤقتًا | استخدم مؤقتًا `DIRECT_URL` = نفس رابط `DATABASE_URL` (6543) **بشرط** إضافة `&statement_cache_size=0`؛ عندها تعمل أوامر المخطط عبر Transaction pooler |
 | التقارير تعرض «تكاليف القطع غير متاحة» | العمود `OrderItem.unitCost` ناقص في القاعدة | `npx prisma db push` على قاعدة الإنتاج |
 | `P2024` (انتهت مهلة الاتصال) | `connection_limit` منخفض أو مفقود | تأكد من `?pgbouncer=true&connection_limit=5` |
 | `P2010` | RLS ما زالت مفعّلة | ارجع لخطوة 2.4 |

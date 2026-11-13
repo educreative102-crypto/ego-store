@@ -1,4 +1,4 @@
-import { Category, Product, StockPolicy } from "@prisma/client";
+import { Product, ProductCategory, StockPolicy } from "@prisma/client";
 import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
 import { remaining, isSoldOut, isAvailable } from "./inventory";
@@ -18,13 +18,14 @@ export type VariantWithBalance = {
 };
 
 export type ProductWithBalance = Product & {
+  category: ProductCategory;
   variants: VariantWithBalance[];
   allSoldOut: boolean;
   mainImage: string | null;
 };
 
 export interface CatalogFilter {
-  category?: Category;
+  categorySlug?: string;
   policy?: StockPolicy;
   search?: string;
   includeSoldOut?: boolean;
@@ -34,11 +35,13 @@ export interface CatalogFilter {
 export async function rawFetchCatalog(
   filter: CatalogFilter = {}
 ): Promise<ProductWithBalance[]> {
-  const { category, policy, search, includeSoldOut = true, onlyActive = true } = filter;
+  const { categorySlug, policy, search, includeSoldOut = true, onlyActive = true } = filter;
   const products = await prisma.product.findMany({
     where: {
       ...(onlyActive ? { active: true } : {}),
-      ...(category ? { category } : {}),
+      ...(categorySlug
+        ? { category: { slug: { equals: categorySlug, mode: "insensitive" } } }
+        : {}),
       ...(policy ? { stockPolicy: policy } : {}),
       ...(search
         ? {
@@ -49,7 +52,7 @@ export async function rawFetchCatalog(
           }
         : {}),
     },
-    include: { variants: true },
+    include: { variants: true, category: true },
     orderBy: { createdAt: "desc" },
   });
 
@@ -112,7 +115,7 @@ export async function rawFetchProductBySlug(
 ): Promise<ProductWithBalance | null> {
   const product = await prisma.product.findUnique({
     where: { slug },
-    include: { variants: true },
+    include: { variants: true, category: true },
   });
   if (!product) return null;
 

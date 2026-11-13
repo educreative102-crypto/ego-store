@@ -8,6 +8,7 @@ import { Button } from "@/components/ui";
 const MENU = [
   { href: "/admin", label: "الرئيسية" },
   { href: "/admin/products", label: "المنتجات" },
+  { href: "/admin/categories", label: "الفئات" },
   { href: "/admin/orders", label: "الطلبات" },
   { href: "/admin/invoices", label: "الفواتير" },
   { href: "/admin/reports", label: "التقارير" },

@@ -3,8 +3,7 @@ import { StockPolicy } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseImageList } from "@/lib/catalog";
 import { money } from "@/lib/format";
-import { CATEGORY_LABEL, STOCK_POLICY_LABEL } from "@/lib/labels";
-import { Badge, Button, Card, EmptyState } from "@/components/ui";
+import { STOCK_POLICY_LABEL } from "@/lib/labels";import { Badge, Button, Card, EmptyState } from "@/components/ui";
 import { ProductRowActions } from "@/components/admin/product-row-actions";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +12,7 @@ export default async function ProductsPage() {
   const { getSettings } = await import("@/lib/settings");
   const settings = await getSettings();
   const products = await prisma.product.findMany({
-    include: { variants: true, _count: { select: { orderItems: true } } },
+    include: { variants: true, category: true, _count: { select: { orderItems: true } } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -60,7 +59,7 @@ export default async function ProductsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge color="blue">{CATEGORY_LABEL[p.category]}</Badge>
+                    <Badge color="blue">{p.category.name}</Badge>
                   </td>
                   <td className="px-4 py-3">
                     <Badge color={p.stockPolicy === StockPolicy.MADE_TO_ORDER ? "emerald" : "amber"}>

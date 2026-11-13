@@ -8,13 +8,23 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+model ProductCategory {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  slug      String    @unique
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
 model Product {
   id           String       @id @default(cuid())
   sku          String       @unique
   slug         String       @unique
   name         String
   description  String       @default("")
-  category     Category     @default(HOODIE)
+  categoryId   String
+  category     ProductCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   stockPolicy  StockPolicy  @default(STOCKED)
   basePrice    Float
   costPrice    Float        @default(0)
@@ -28,6 +38,8 @@ model Product {
   updatedAt    DateTime     @updatedAt
   variants     Variant[]
   orderItems   OrderItem[]
+
+  @@index([categoryId])
 }
 
 model Variant {
@@ -99,11 +111,6 @@ model RateBucket {
   windowStart  DateTime  @default(now())
   blockedUntil DateTime?
   touchedAt    DateTime  @default(now()) @updatedAt
-}
-
-enum Category {
-  HOODIE
-  TSHIRT
 }
 
 enum StockPolicy {
